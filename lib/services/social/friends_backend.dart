@@ -7,27 +7,52 @@ class Friend {
   const Friend({
     required this.uid,
     required this.name,
+    this.tag,
     this.wins = 0,
     this.losses = 0,
   });
 
   final String uid;
   final String name;
+  final String? tag;
 
   /// Overall wins and losses on the leaderboard (not only against you).
   final int wins;
   final int losses;
 
-  LeaderboardEntry toEntry() =>
-      LeaderboardEntry(uid: uid, name: name, wins: wins, losses: losses);
+  LeaderboardEntry toEntry() => LeaderboardEntry(
+    uid: uid,
+    name: name,
+    tag: tag,
+    wins: wins,
+    losses: losses,
+  );
 }
 
 /// Someone who wants to be your friend.
 class FriendRequest {
-  const FriendRequest({required this.fromUid, required this.name});
+  const FriendRequest({required this.fromUid, required this.name, this.tag});
 
   final String fromUid;
   final String name;
+  final String? tag;
+}
+
+/// A friend challenges you: join their room to play.
+class ChallengeInvite {
+  const ChallengeInvite({
+    required this.fromUid,
+    required this.name,
+    this.tag,
+    required this.roomCode,
+    required this.sentAt,
+  });
+
+  final String fromUid;
+  final String name;
+  final String? tag;
+  final String roomCode;
+  final DateTime sentAt;
 }
 
 /// What happened when you added someone.
@@ -44,9 +69,16 @@ enum AddFriendResult {
 
 /// This phone's player on the server.
 class FriendIdentity {
-  const FriendIdentity({required this.uid, required this.friendCode});
+  const FriendIdentity({
+    required this.uid,
+    required this.friendCode,
+    required this.tag,
+  });
 
   final String uid;
+
+  /// Public tag shown after your name ("#4821"). Not the friend code.
+  final String tag;
 
   /// Short code others type in to add you (see [FriendsBackend.addByCode]).
   final String friendCode;
@@ -85,6 +117,26 @@ abstract class FriendsBackend {
 
   /// Ends the friendship on both sides.
   Future<void> remove(String uid);
+
+  /// Challenges sent to you. Updates live.
+  Stream<List<ChallengeInvite>> invites();
+
+  /// Invites friend [toUid] to the room [roomCode] you just made.
+  Future<void> sendInvite(String toUid, String roomCode);
+
+  /// Takes back your invite to [toUid] (they joined, or you left).
+  Future<void> cancelInvite(String toUid);
+
+  /// Removes an invite sent to you (accepted, declined or expired).
+  Future<void> dismissInvite(String fromUid);
+
+  /// Your saved XP and record (`users/{uid}/progress`), null if none yet.
+  Future<Map<String, Object?>?> loadProgress();
+
+  Future<void> saveProgress(Map<String, Object?> progress);
+
+  /// Sets your scorebord entry back to 0 wins and 0 losses.
+  Future<void> resetStats();
 
   Future<void> dispose();
 }

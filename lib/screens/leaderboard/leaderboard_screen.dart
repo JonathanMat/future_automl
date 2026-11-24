@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,13 +11,14 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
+import '../../widgets/friends/challenge_banner.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/screen_header.dart';
 import '../../widgets/leaderboard/leaderboard_row.dart';
 import '../../widgets/leaderboard/podium.dart';
 import '../../widgets/leaderboard/segmented_tabs.dart';
 
-/// Ranking by wins. "Campus" is the top of everyone on the server,
+/// Ranking by wins. "Global" is the top of everyone on the server,
 /// "Vrienden" is you and your accepted friends (see [FriendsProvider]).
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -26,10 +29,34 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   int _tab = 0;
-  late final Stream<List<LeaderboardEntry>> _stream = context
-      .read<GameProvider>()
-      .backend
-      .leaderboard(limit: AppConstants.leaderboardSize);
+
+  // Listened to once for the screen's lifetime: the backend stream allows
+  // only one listener, and the tab switch would otherwise re-subscribe.
+  StreamSubscription<List<LeaderboardEntry>>? _sub;
+  List<LeaderboardEntry>? _global;
+  Object? _globalError;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = context
+        .read<GameProvider>()
+        .backend
+        .leaderboard(limit: AppConstants.leaderboardSize)
+        .listen(
+          (list) => setState(() {
+            _global = list;
+            _globalError = null;
+          }),
+          onError: (Object e) => setState(() => _globalError = e),
+        );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,39 +85,33 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             children: [
               const ScreenHeader(title: 'Scorebord', onBack: null),
               const SizedBox(height: 16),
+              const ChallengeBanner(padding: EdgeInsets.only(bottom: 16)),
               SegmentedTabs(
-                labels: const ['Vrienden', 'Campus'],
+                labels: const ['Vrienden', 'Global'],
                 selected: _tab,
                 onSelected: (i) => setState(() => _tab = i),
               ),
               Expanded(
                 child: _tab == 0
                     ? _friendsBoard(social, isMe)
-                    : StreamBuilder<List<LeaderboardEntry>>(
-                        stream: _stream,
-                        builder: (context, snap) {
-                          if (snap.hasError) {
-                            return _Message(
-                              'Scorebord laden mislukt.\n${snap.error}',
-                            );
-                          }
-                          if (!snap.hasData) return const _Loading();
-                          final entries = [...snap.data!]
-                            ..sort((a, b) => b.wins.compareTo(a.wins));
-                          if (entries.isEmpty) {
-                            return const _Message(
-                              'Nog niemand op het scorebord.',
-                            );
-                          }
-                          return _Board(entries: entries, isMe: isMe);
-                        },
-                      ),
+                    : _globalBoard(isMe),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _globalBoard(bool Function(LeaderboardEntry) isMe) {
+    if (_globalError != null) {
+      return _Message('Scorebord laden mislukt.\n$_globalError');
+    }
+    final global = _global;
+    if (global == null) return const _Loading();
+    if (global.isEmpty) return const _Message('Nog niemand op het scorebord.');
+    final entries = [...global]..sort((a, b) => b.wins.compareTo(a.wins));
+    return _Board(entries: entries, isMe: isMe);
   }
 
   Widget _friendsBoard(
@@ -128,6 +149,7 @@ class _Board extends StatelessWidget {
         LeaderboardRow(
           rank: i + 1,
           name: entries[i].name,
+          tag: entries[i].tag,
           wins: entries[i].wins,
           losses: entries[i].losses,
           isMe: isMe(entries[i]),

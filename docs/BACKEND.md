@@ -99,11 +99,51 @@ friends/{uid}/{friendUid}: <server ms>         // stored on both sides
 - Accept = one atomic update: both `friends/` entries + delete the request.
   The rules only allow a `friends/` entry while that request exists.
 - Scorebord "Vrienden" = you + your friends' `leaderboard/{uid}` (live),
-  "Campus" = top 20 of everyone.
+  "Global" = top 20 of everyone.
 - "Recent gespeeld" on the Vrienden page is still local (this phone only).
 - Players start as an anonymous **guest**; the uid is per install.
   Reinstalling (or clearing app data) as a guest gives a new uid, friend
   code and empty friend list.
+
+## Challenges + push
+
+`providers/challenge_provider.dart`, `services/push/push_service.dart`,
+`cloudflare/push-worker/`.
+
+```
+invites/{toUid}/{fromUid}: {name, tag, roomCode, at}   // only between friends
+fcmTokens/{uid}/{token}: true                          // only owner can read
+pushLog/{toUid}/{fromUid}: at                          // worker only
+```
+
+- "Daag uit" (⚡ on a friend) makes a room, writes the invite and opens
+  the lobby. The invite is removed when the friend joins or you leave.
+- The friend sees a banner on Home, Vrienden and Scorebord (not in a
+  room). "Speel" joins, "Weiger" removes it. Invites older than 3 minutes
+  are hidden.
+- Push: after writing the invite the app calls the **Cloudflare Worker**
+  with its Firebase ID token. The worker checks the token, checks that
+  the invite exists (so only friends can trigger a push), and sends it
+  with FCM. Free: no Blaze plan needed. Without the worker (no
+  `PUSH_WORKER_URL`) everything works except the notification.
+
+Setup (once):
+1. Firebase console → Project settings → **Service accounts → Generate
+   new private key**. Keep the JSON file secret (not in git).
+2. Free account at [dash.cloudflare.com](https://dash.cloudflare.com).
+3. ```
+   cd cloudflare/push-worker
+   npm install
+   npx wrangler login
+   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT   # paste the whole JSON
+   npx wrangler deploy
+   ```
+   `deploy` prints the URL, e.g. `https://spell-duel-push.<you>.workers.dev`.
+4. Put it in `config.json` as `"PUSH_WORKER_URL"` and rebuild the app.
+5. iOS only: APNs key in Firebase → Cloud Messaging (see Firebase docs).
+
+Database rules: paste `database.rules.json` in the console, or
+`firebase deploy --only database` (works on the free plan).
 
 ## Account (optional Google login)
 
@@ -115,7 +155,12 @@ friends/{uid}/{friendUid}: <server ms>         // stored on both sides
   `credential-already-in-use` → sign in to that account instead. The
   guest's server data stays behind; friends reload for the new uid.
 - **Uitloggen**: signs out of Google and continues as a new guest.
-- XP/level and "Recent gespeeld" are still stored only on the phone.
+- XP, level, wins and last duel are synced to `users/{uid}/progress`
+  (FriendsProvider). Normal start: the copy with the most XP wins. After
+  switching account: that account's progress replaces the phone's.
+- "Recent gespeeld" stays on the phone only.
+- **A guest that never linked Google can't be recovered** after an
+  uninstall: the anonymous account is gone with the app.
 
 Setup (once):
 1. Firebase console → Authentication → Sign-in method → **Google → enable**.

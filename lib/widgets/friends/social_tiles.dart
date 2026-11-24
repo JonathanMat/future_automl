@@ -3,17 +3,21 @@ import 'package:flutter/material.dart';
 import '../../services/social/friends_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/player_tag.dart';
 import '../generic/avatar_tile.dart';
+import '../generic/player_name.dart';
 
 /// Avatar, name, subtitle and trailing actions in a rounded row.
 class _PlayerRow extends StatelessWidget {
   const _PlayerRow({
     required this.name,
+    this.tag,
     required this.subtitle,
     required this.trailing,
   });
 
   final String name;
+  final String? tag;
   final String subtitle;
   final Widget trailing;
 
@@ -33,11 +37,14 @@ class _PlayerRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style: AppTextStyles.body(15, weight: FontWeight.w900),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Semantics(
+                  label: PlayerTag.withName(name, tag),
+                  excludeSemantics: true,
+                  child: PlayerName(
+                    name: name,
+                    tag: tag,
+                    style: AppTextStyles.body(15, weight: FontWeight.w900),
+                  ),
                 ),
                 Text(
                   subtitle,
@@ -89,6 +96,7 @@ class FriendRequestTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return _PlayerRow(
       name: request.name,
+      tag: request.tag,
       subtitle: 'Wil je vriend worden',
       trailing: busy
           ? const _Spinner()
@@ -124,11 +132,15 @@ class ServerFriendTile extends StatelessWidget {
     super.key,
     required this.friend,
     required this.onRemove,
+    this.onChallenge,
     this.busy = false,
   });
 
   final Friend friend;
   final VoidCallback onRemove;
+
+  /// Null disables the challenge button (e.g. while a room is opening).
+  final VoidCallback? onChallenge;
   final bool busy;
 
   @override
@@ -136,21 +148,36 @@ class ServerFriendTile extends StatelessWidget {
     final games = friend.wins + friend.losses;
     return _PlayerRow(
       name: friend.name,
+      tag: friend.tag,
       subtitle: games == 0
           ? 'Nog geen duels gespeeld'
           : '${friend.wins} gewonnen · ${friend.losses} verloren',
       trailing: busy
           ? const _Spinner()
-          : PopupMenuButton<void>(
-              tooltip: 'Opties voor ${friend.name}',
-              icon: const Icon(
-                Icons.more_vert_rounded,
-                color: AppColors.textMuted,
-              ),
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  onTap: onRemove,
-                  child: const Text('Verwijder als vriend'),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton.filled(
+                  tooltip: 'Daag ${friend.name} uit',
+                  onPressed: onChallenge,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.goldInk,
+                  ),
+                  icon: const Icon(Icons.bolt_rounded),
+                ),
+                PopupMenuButton<void>(
+                  tooltip: 'Opties voor ${friend.name}',
+                  icon: const Icon(
+                    Icons.more_vert_rounded,
+                    color: AppColors.textMuted,
+                  ),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      onTap: onRemove,
+                      child: const Text('Verwijder als vriend'),
+                    ),
+                  ],
                 ),
               ],
             ),

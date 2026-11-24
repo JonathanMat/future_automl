@@ -6,6 +6,7 @@ import '../../theme/app_text_styles.dart';
 import '../../utils/constants.dart';
 import '../generic/avatar_tile.dart';
 import '../generic/icon_square_button.dart';
+import '../generic/player_name.dart';
 import '../generic/progress_bar.dart';
 
 /// Avatar, name, level bar and the settings button.
@@ -14,9 +15,13 @@ class ProfileHeader extends StatelessWidget {
     super.key,
     required this.profile,
     required this.onSettings,
+    this.tag,
   });
 
   final PlayerProfile profile;
+
+  /// Public tag shown after the name ("#4821"), once signed in.
+  final String? tag;
   final VoidCallback onSettings;
 
   @override
@@ -29,11 +34,10 @@ class ProfileHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                profile.name,
+              PlayerName(
+                name: profile.name,
+                tag: tag,
                 style: AppTextStyles.body(17, weight: FontWeight.w900),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 6),
               Semantics(

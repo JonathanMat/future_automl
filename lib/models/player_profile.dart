@@ -38,7 +38,8 @@ class LastDuel {
   }
 }
 
-/// The local player: name, XP and record. Stored on the phone.
+/// The local player: name, XP and record. Stored on the phone and synced
+/// to `users/{uid}/progress` (see FriendsProvider).
 class PlayerProfile {
   const PlayerProfile({
     this.name = '',
@@ -95,6 +96,13 @@ class PlayerProfile {
     'streak': streak,
     'lastDuel': lastDuel?.toJson(),
   };
+
+  /// Everything except the name, for syncing to the server.
+  Map<String, Object?> progressJson() => toJson()..remove('name');
+
+  /// This profile with XP, record and last duel taken from [progress].
+  PlayerProfile withProgress(Map<String, Object?> progress) =>
+      PlayerProfile.fromJson({...progress, 'name': name});
 
   factory PlayerProfile.fromJson(Map<String, Object?> json) => PlayerProfile(
     name: json['name'] as String? ?? '',

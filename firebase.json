@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"spell-duel-52675","appId":"1:123043703474:android:349ed65cf6dc8ea39137ab","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"spell-duel-52675","configurations":{"android":"1:123043703474:android:349ed65cf6dc8ea39137ab","ios":"1:123043703474:ios:06f1593a1de3d6a19137ab"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "spell-duel-52675",
+          "appId": "1:123043703474:android:349ed65cf6dc8ea39137ab",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "spell-duel-52675",
+          "configurations": {
+            "android": "1:123043703474:android:349ed65cf6dc8ea39137ab",
+            "ios": "1:123043703474:ios:06f1593a1de3d6a19137ab"
+          }
+        }
+      }
+    }
+  },
+  "database": {
+    "rules": "database.rules.json"
+  }
+}

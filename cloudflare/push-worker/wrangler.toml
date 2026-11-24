@@ -1,0 +1,13 @@
+# Cloudflare Worker that sends challenge push notifications via FCM.
+# Deploy: npx wrangler deploy   (see docs/BACKEND.md)
+name = "spell-duel-push"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+FIREBASE_PROJECT_ID = "spell-duel-52675"
+FIREBASE_DB_URL = "https://spell-duel-52675-default-rtdb.europe-west1.firebasedatabase.app"
+
+# Secret (never in git): npx wrangler secret put FIREBASE_SERVICE_ACCOUNT

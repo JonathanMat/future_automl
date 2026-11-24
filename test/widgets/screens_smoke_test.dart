@@ -101,9 +101,15 @@ void main() {
 
     await tester.tap(find.text('Scorebord').last);
     await pumpFor(tester, const Duration(milliseconds: 500));
-    expect(find.text('Campus'), findsOneWidget);
-    await tester.tap(find.text('Campus'));
+    expect(find.text('Global'), findsOneWidget);
+    await tester.tap(find.text('Global'));
     await pumpFor(tester, const Duration(milliseconds: 500));
+    // Switching back and forth must not listen to the stream twice.
+    await tester.tap(find.text('Vrienden').first);
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    await tester.tap(find.text('Global'));
+    await pumpFor(tester, const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('Home'));
     await pumpFor(tester, const Duration(milliseconds: 500));

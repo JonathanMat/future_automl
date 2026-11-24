@@ -6,7 +6,7 @@ import '../services/auth/account_service.dart';
 
 /// Guest or Google account, for the settings screen.
 class AccountProvider extends ChangeNotifier {
-  AccountProvider(this.service, {this.onUserChanged}) {
+  AccountProvider(this.service, {this.onUserChanged, this.beforeSignOut}) {
     _info = service.current;
     _sub = service.changes.listen(_onChange);
   }
@@ -16,6 +16,9 @@ class AccountProvider extends ChangeNotifier {
   /// Called when a different user is signed in (switched account or signed
   /// out), so uid-based data can be reloaded.
   final VoidCallback? onUserChanged;
+
+  /// Runs while the old user is still signed in (e.g. remove push token).
+  final Future<void> Function()? beforeSignOut;
 
   late AccountInfo _info;
   late final StreamSubscription<AccountInfo> _sub;
@@ -47,6 +50,7 @@ class AccountProvider extends ChangeNotifier {
   });
 
   Future<String?> signOut() => _run(() async {
+    await beforeSignOut?.call();
     await service.signOut();
     return 'Uitgelogd. Je speelt nu als gast.';
   });

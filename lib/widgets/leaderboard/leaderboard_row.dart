@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/player_tag.dart';
 import '../generic/avatar_tile.dart';
+import '../generic/player_name.dart';
 
 /// One ranked player: "4 · L · Lotte · 11W · 6V · 65%".
 class LeaderboardRow extends StatelessWidget {
@@ -10,6 +12,7 @@ class LeaderboardRow extends StatelessWidget {
     super.key,
     required this.rank,
     required this.name,
+    this.tag,
     required this.wins,
     required this.losses,
     this.isMe = false,
@@ -17,6 +20,7 @@ class LeaderboardRow extends StatelessWidget {
 
   final int rank;
   final String name;
+  final String? tag;
   final int wins;
   final int losses;
   final bool isMe;
@@ -30,7 +34,8 @@ class LeaderboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       label:
-          'Plaats $rank: $name${isMe ? ' (jij)' : ''}, '
+          'Plaats $rank: ${PlayerTag.withName(name, tag)}'
+          '${isMe ? ' (jij)' : ''}, '
           '$wins gewonnen, $losses verloren, $_rate procent',
       excludeSemantics: true,
       child: Container(
@@ -59,11 +64,11 @@ class LeaderboardRow extends StatelessWidget {
             AvatarTile(name: name, size: 34),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                isMe ? '$name (jij)' : name,
+              child: PlayerName(
+                name: name,
+                tag: tag,
+                suffix: isMe ? ' (jij)' : '',
                 style: AppTextStyles.body(15, weight: FontWeight.w900),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             Text('${wins}W · ${losses}V', style: AppTextStyles.caption()),

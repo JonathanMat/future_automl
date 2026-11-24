@@ -13,15 +13,20 @@ class LobbyPlayerCard extends StatelessWidget {
     required this.name,
     required this.subtitle,
     this.online = true,
+    this.invitedName,
   });
 
   final String? name;
+
+  /// While [name] is null: the friend you challenged, shown greyed out.
+  final String? invitedName;
   final String subtitle;
   final bool online;
 
   @override
   Widget build(BuildContext context) {
     final waiting = name == null;
+    final invited = waiting ? invitedName : null;
     final accent = waiting ? AppColors.track : name!.avatarColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
@@ -32,7 +37,27 @@ class LobbyPlayerCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          if (waiting)
+          if (invited != null)
+            SizedBox.square(
+              dimension: 64,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: 0.45,
+                    child: AvatarTile(name: invited, size: 64),
+                  ),
+                  const SizedBox.square(
+                    dimension: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (waiting)
             Container(
               width: 64,
               height: 64,
@@ -52,7 +77,7 @@ class LobbyPlayerCard extends StatelessWidget {
             AvatarTile(name: name!, size: 64),
           const SizedBox(height: 10),
           Text(
-            name ?? 'Wachten…',
+            name ?? invited ?? 'Wachten…',
             style: AppTextStyles.body(
               16,
               weight: FontWeight.w900,
@@ -63,7 +88,9 @@ class LobbyPlayerCard extends StatelessWidget {
           ),
           Text(subtitle, style: AppTextStyles.caption()),
           const SizedBox(height: 10),
-          if (waiting)
+          if (invited != null)
+            const PillBadge(label: 'UITGENODIGD', color: AppColors.gold)
+          else if (waiting)
             const PillBadge(label: 'NIET KLAAR', color: AppColors.textMuted)
           else if (!online)
             const PillBadge(

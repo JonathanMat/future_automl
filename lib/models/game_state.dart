@@ -170,10 +170,14 @@ class LeaderboardEntry {
     required this.name,
     required this.wins,
     required this.losses,
+    this.tag,
   });
 
   final String uid;
   final String name;
   final int wins;
   final int losses;
+
+  /// Public 4-digit tag ("Jan #4821"), see `PlayerTag`.
+  final String? tag;
 }

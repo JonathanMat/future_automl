@@ -46,7 +46,8 @@
         ".write": "auth != null && auth.uid === $uid",
         "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
         "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
-        "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+        "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "tag": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)" }
       }
     },
     "users": {
@@ -54,6 +55,15 @@
         ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid",
         "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+        "tag": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/) && (!data.exists() || newData.val() === data.val())" },
+        "progress": {
+          "xp": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "streak": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "lastDuel": { ".validate": "newData.hasChildren(['opponentName', 'won', 'playedAt'])" },
+          "$other": { ".validate": false }
+        },
         "friendCode": {
           ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val()) && newData.parent().parent().parent().child('friendCodes/' + newData.val()).val() === $uid"
         },
@@ -75,9 +85,32 @@
           ".write": "auth != null && $from !== $to && (auth.uid === $from || (auth.uid === $to && !newData.exists()))",
           ".validate": "newData.hasChildren(['name', 'at'])",
           "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "tag": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)" },
           "at": { ".validate": "newData.val() === now" },
           "$other": { ".validate": false }
         }
+      }
+    },
+    "invites": {
+      "$to": {
+        ".read": "auth != null && auth.uid === $to",
+        "$from": {
+          ".read": "auth != null && auth.uid === $from",
+          ".write": "auth != null && $from !== $to && ((auth.uid === $from && (!newData.exists() || root.child('friends/' + $to + '/' + $from).exists())) || (auth.uid === $to && !newData.exists()))",
+          ".validate": "newData.hasChildren(['name', 'roomCode', 'at'])",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "tag": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)" },
+          "roomCode": { ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9]{4}$/)" },
+          "at": { ".validate": "newData.val() === now" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "fcmTokens": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$token": { ".validate": "newData.isBoolean()" }
       }
     },
     "friends": {

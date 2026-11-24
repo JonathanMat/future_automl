@@ -27,7 +27,7 @@ import 'webrtc_call.dart';
 ///     reveals/{uid}: {spell, salt}
 ///     result: {winnerUid?, reason, at, spells/{uid}: "vuur"}
 ///   signaling/...                              (see WebRtcCall)
-/// leaderboard/{uid}: {name, wins, losses}
+/// leaderboard/{uid}: {name, tag, wins, losses}
 /// ```
 ///
 /// The host phone runs the game: it starts rounds and decides results.
@@ -212,6 +212,7 @@ class FirebaseGameBackend implements GameBackend {
               LeaderboardEntry(
                 uid: child.key ?? '',
                 name: v['name'] as String? ?? '?',
+                tag: v['tag'] as String?,
                 wins: _asInt(v['wins']),
                 losses: _asInt(v['losses']),
               ),
@@ -664,13 +665,19 @@ class FirebaseGameBackend implements GameBackend {
     if (!_leaderboardRecorded.add(game)) return;
     final won = room['winnerUid'] == _uid;
     final me = _asMap(_asMap(room['players'])?[_uid]);
+    final uid = _uid;
+    // The tag lives in users/{uid} (made by the friends backend).
     _db
-        .ref('leaderboard/$_uid')
-        .update({
-          'name': me?['name'] ?? 'Speler',
-          'wins': ServerValue.increment(won ? 1 : 0),
-          'losses': ServerValue.increment(won ? 0 : 1),
-        })
+        .ref('users/$uid/tag')
+        .get()
+        .then(
+          (tag) => _db.ref('leaderboard/$uid').update({
+            'name': me?['name'] ?? 'Speler',
+            if (tag.value is String) 'tag': tag.value,
+            'wins': ServerValue.increment(won ? 1 : 0),
+            'losses': ServerValue.increment(won ? 0 : 1),
+          }),
+        )
         .catchError((Object e) => debugPrint('leaderboard failed: $e'));
   }
 

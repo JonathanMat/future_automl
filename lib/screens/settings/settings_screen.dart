@@ -5,11 +5,13 @@ import 'package:provider/provider.dart';
 import '../../models/game_rules.dart';
 import '../../models/spell_info.dart';
 import '../../navigators/app_router.dart';
+import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/player_tag.dart';
 import '../../widgets/generic/app_card.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/name_field.dart';
@@ -52,8 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Statistieken wissen?'),
         content: const Text(
-          'Je XP, overwinningen en recente tegenstanders worden gewist op deze '
-          'gsm. Je vrienden blijven bewaard. '
+          'Je XP, overwinningen, je plek op het scorebord en recente '
+          'tegenstanders worden gewist. Je vrienden blijven bewaard. '
           'Dit kan je niet ongedaan maken.',
         ),
         actions: [
@@ -70,13 +72,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (ok == true && mounted) {
+      final friends = context.read<FriendsProvider>();
       await context.read<ProfileProvider>().resetStats();
+      // Also the scorebord, so it matches the (now empty) progress.
+      await friends.resetServerStats();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>();
+    final social = context.watch<FriendsProvider>();
     final config = context.select<GameProvider, GameConfig>(
       (g) => g.state.config,
     );
@@ -97,7 +103,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('PROFIEL', style: AppTextStyles.overline()),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'PROFIEL',
+                            style: AppTextStyles.overline(),
+                          ),
+                        ),
+                        if (social.myTag != null)
+                          Text(
+                            PlayerTag.format(social.myTag),
+                            style: AppTextStyles.body(
+                              13,
+                              weight: FontWeight.w900,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     NameField(controller: _name, onSubmitted: _saveName),
                     const SizedBox(height: 8),

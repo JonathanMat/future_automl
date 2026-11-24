@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/game_state.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/player_tag.dart';
 import '../generic/avatar_tile.dart';
 
 /// Top three, with #1 in the middle and tallest.
@@ -55,7 +56,9 @@ class _Step extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Plaats $rank: ${entry.name}, ${entry.wins} wins',
+      label:
+          'Plaats $rank: ${PlayerTag.withName(entry.name, entry.tag)}, '
+          '${entry.wins} wins',
       excludeSemantics: true,
       child: SizedBox(
         width: 104,
@@ -74,7 +77,13 @@ class _Step extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            Text('${entry.wins} wins', style: AppTextStyles.caption()),
+            Text(
+              [
+                if (entry.tag != null) PlayerTag.format(entry.tag),
+                '${entry.wins} wins',
+              ].join(' · '),
+              style: AppTextStyles.caption(),
+            ),
             const SizedBox(height: 8),
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: height),

@@ -8,6 +8,7 @@ import '../../providers/profile_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/generic/app_logo.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/name_field.dart';
 import '../../widgets/generic/spell_orb.dart';
@@ -48,7 +49,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
+                const Center(child: AppLogo(size: 128)),
+                const SizedBox(height: 16),
                 Text(
                   'WELKOM BIJ',
                   textAlign: TextAlign.center,

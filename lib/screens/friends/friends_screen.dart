@@ -11,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/friends/add_friend_row.dart';
+import '../../widgets/friends/challenge_banner.dart';
 import '../../widgets/friends/friend_code_card.dart';
 import '../../widgets/friends/friend_tile.dart';
 import '../../widgets/friends/social_tiles.dart';
@@ -78,6 +79,7 @@ class FriendsScreen extends StatelessWidget {
           children: [
             const ScreenHeader(title: 'Vrienden', onBack: null),
             const SizedBox(height: 16),
+            const ChallengeBanner(padding: EdgeInsets.only(bottom: 16)),
             ChunkyButton(
               label: 'NIEUW DUEL',
               icon: Icons.person_add_alt_1_rounded,
@@ -98,7 +100,11 @@ class FriendsScreen extends StatelessWidget {
                 onRetry: social.connect,
               )
             else ...[
-              FriendCodeCard(code: social.friendCode),
+              FriendCodeCard(
+                code: social.friendCode,
+                name: context.watch<ProfileProvider>().profile.name,
+                tag: social.myTag,
+              ),
               const SizedBox(height: 10),
               AddFriendRow(
                 enabled: social.isReady,
@@ -142,6 +148,9 @@ class FriendsScreen extends StatelessWidget {
                   friend: f,
                   busy: social.isWorking(f.uid),
                   onRemove: () => _confirmRemove(context, f),
+                  onChallenge: busy
+                      ? null
+                      : () => RoomFlow.challenge(context, f),
                 ),
                 const SizedBox(height: 8),
               ],

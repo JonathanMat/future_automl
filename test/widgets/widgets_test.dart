@@ -5,6 +5,7 @@ import 'package:spell_duel/main.dart';
 import 'package:spell_duel/models/game_rules.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
 import 'package:spell_duel/services/game/mock_game_backend.dart';
+import 'package:spell_duel/services/social/friends_backend.dart';
 import 'package:spell_duel/services/social/mock_friends_backend.dart';
 import 'package:spell_duel/services/storage/local_storage_service.dart';
 
@@ -109,7 +110,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('DUEL STARTEN'), findsOneWidget);
-      expect(find.text('Jonathan'), findsOneWidget);
+      expect(
+        find.textContaining('Jonathan', findRichText: true),
+        findsOneWidget,
+      );
       expect(profile.profile.name, 'Jonathan');
     });
 
@@ -205,11 +209,85 @@ void main() {
       await tester.enterText(find.byType(TextFormField), 'abc234');
       await tester.tap(find.text('Voeg toe'));
       await tester.pumpAndSettle();
-      expect(find.text('Vriend ABC234'), findsOneWidget);
+      expect(
+        find.textContaining('Vriend ABC234', findRichText: true),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Scorebord').last);
       await tester.pumpAndSettle();
-      expect(find.text('Vriend ABC234'), findsOneWidget);
+      expect(
+        find.textContaining('Vriend ABC234', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a challenge shows on home and can be declined', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        SpellDuelApp(
+          backend: MockGameBackend(useCamera: false),
+          profile: profile,
+          friends: MockFriendsBackend(
+            seedInvites: [
+              ChallengeInvite(
+                fromUid: 'lotte',
+                name: 'Lotte',
+                roomCode: 'ABCD',
+                sentAt: DateTime.now(),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.textContaining('Lotte daagt je uit!', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Weiger'));
+      await tester.pump();
+      expect(
+        find.textContaining('Lotte daagt je uit!', findRichText: true),
+        findsNothing,
+      );
+    });
+
+    testWidgets('challenging a friend shows who you are waiting for', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.text('Vrienden').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), 'abc234');
+      await tester.tap(find.text('Voeg toe'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Daag Vriend ABC234 uit'));
+      await _pumpFor(tester, const Duration(milliseconds: 500));
+      expect(find.text('Uitdaging'), findsOneWidget);
+      expect(
+        find.textContaining('Wachten op Vriend ABC234', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.text('UITGENODIGD'), findsOneWidget);
+      expect(find.text('WACHTEN OP VRIEND ABC234'), findsOneWidget);
+
+      // Leave before the bot joins.
+      await tester.binding.handlePopRoute();
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+      expect(find.text('Uitdaging'), findsNothing);
     });
 
     testWidgets('a bad room code shows a validation error', (tester) async {

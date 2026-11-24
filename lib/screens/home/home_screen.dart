@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../navigators/app_router.dart';
 import '../../navigators/room_flow.dart';
+import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/friends/challenge_banner.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/stat_tile.dart';
@@ -40,10 +42,12 @@ class HomeScreen extends StatelessWidget {
           children: [
             ProfileHeader(
               profile: profile,
+              tag: context.select<FriendsProvider, String?>((f) => f.myTag),
               onSettings: () =>
                   Navigator.of(context).pushNamed(AppRoutes.settings),
             ),
             const SizedBox(height: 20),
+            const ChallengeBanner(padding: EdgeInsets.only(bottom: 20)),
             SpellHeroCard(config: game.state.config),
             const SizedBox(height: 20),
             ChunkyButton(

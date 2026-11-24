@@ -8,20 +8,29 @@ import 'friends_backend.dart';
 /// Any valid code adds a friend right away. [seedRequests] puts incoming
 /// requests in the list, to see that part of the screen.
 class MockFriendsBackend implements FriendsBackend {
-  MockFriendsBackend({List<FriendRequest> seedRequests = const []})
-    : _requests = [...seedRequests];
+  MockFriendsBackend({
+    List<FriendRequest> seedRequests = const [],
+    List<ChallengeInvite> seedInvites = const [],
+  }) : _requests = [...seedRequests],
+       _invites = [...seedInvites];
 
   static const myCode = 'TEST42';
+  static const myTag = '1234';
   static const _myUid = 'mock-me';
 
   final Map<String, Friend> _friends = {};
   final List<FriendRequest> _requests;
+  final List<ChallengeInvite> _invites;
+
+  /// Invites this phone sent, by friend uid → room code (for tests).
+  final Map<String, String> sentInvites = {};
+  final _invitesCtl = StreamController<List<ChallengeInvite>>.broadcast();
   final _friendsCtl = StreamController<List<Friend>>.broadcast();
   final _requestsCtl = StreamController<List<FriendRequest>>.broadcast();
 
   @override
   Future<FriendIdentity> signIn({required String name}) async =>
-      const FriendIdentity(uid: _myUid, friendCode: myCode);
+      const FriendIdentity(uid: _myUid, friendCode: myCode, tag: myTag);
 
   @override
   Future<void> updateName(String name) async {}
@@ -42,8 +51,19 @@ class MockFriendsBackend implements FriendsBackend {
     yield* _requestsCtl.stream;
   }
 
+  /// Your scorebord entry (for tests).
+  LeaderboardEntry? board;
+
   @override
-  Stream<LeaderboardEntry?> myStats() => Stream.value(null);
+  Stream<LeaderboardEntry?> myStats() => Stream.value(board);
+
+  @override
+  Future<void> resetStats() async {
+    final b = board;
+    if (b != null) {
+      board = LeaderboardEntry(uid: b.uid, name: b.name, wins: 0, losses: 0);
+    }
+  }
 
   @override
   Future<AddFriendResult> addByCode(String code) async {
@@ -56,7 +76,11 @@ class MockFriendsBackend implements FriendsBackend {
   Future<AddFriendResult> addByUid(String uid, {String? name}) async {
     if (uid == _myUid) throw FriendsException('Dat ben je zelf.');
     if (_friends.containsKey(uid)) return AddFriendResult.alreadyFriends;
-    _friends[uid] = Friend(uid: uid, name: name ?? _nameFor(uid));
+    _friends[uid] = Friend(
+      uid: uid,
+      name: name ?? _nameFor(uid),
+      tag: '${1000 + uid.hashCode.abs() % 9000}',
+    );
     _emit();
     return AddFriendResult.accepted;
   }
@@ -69,6 +93,7 @@ class MockFriendsBackend implements FriendsBackend {
     _friends[request.fromUid] = Friend(
       uid: request.fromUid,
       name: request.name,
+      tag: request.tag,
     );
     _emit();
   }
@@ -85,14 +110,44 @@ class MockFriendsBackend implements FriendsBackend {
     _emit();
   }
 
+  @override
+  Stream<List<ChallengeInvite>> invites() async* {
+    yield List.of(_invites);
+    yield* _invitesCtl.stream;
+  }
+
+  @override
+  Future<void> sendInvite(String toUid, String roomCode) async =>
+      sentInvites[toUid] = roomCode;
+
+  @override
+  Future<void> cancelInvite(String toUid) async => sentInvites.remove(toUid);
+
+  @override
+  Future<void> dismissInvite(String fromUid) async {
+    _invites.removeWhere((i) => i.fromUid == fromUid);
+    if (!_invitesCtl.isClosed) _invitesCtl.add(List.of(_invites));
+  }
+
   void _emit() {
     if (!_friendsCtl.isClosed) _friendsCtl.add(_friendList);
     if (!_requestsCtl.isClosed) _requestsCtl.add(List.of(_requests));
   }
 
+  /// What [saveProgress] stored last (for tests).
+  Map<String, Object?>? savedProgress;
+
+  @override
+  Future<Map<String, Object?>?> loadProgress() async => savedProgress;
+
+  @override
+  Future<void> saveProgress(Map<String, Object?> progress) async =>
+      savedProgress = progress;
+
   @override
   Future<void> dispose() async {
     await _friendsCtl.close();
     await _requestsCtl.close();
+    await _invitesCtl.close();
   }
 }

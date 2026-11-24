@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/player_profile.dart';
 import '../services/social/friends_backend.dart';
 import 'profile_provider.dart';
 
@@ -29,11 +30,20 @@ class FriendsProvider extends ChangeNotifier {
   final List<StreamSubscription<Object?>> _subs = [];
   ProfileProvider? _profile;
   String? _syncedName;
+
+  /// Progress as last saved to / loaded from the server (JSON string).
+  String? _syncedProgress;
+
+  /// Set by [restart]: the next sign-in takes the server's progress.
+  bool _adoptRemote = false;
   bool _disposed = false;
 
   FriendIdentity? get identity => _identity;
   String? get myUid => _identity?.uid;
   String? get friendCode => _identity?.friendCode;
+
+  /// Your public tag ("#4821" after your name).
+  String? get myTag => _identity?.tag;
   bool get isReady => _identity != null;
   bool get connecting => _connecting;
 
@@ -59,6 +69,7 @@ class FriendsProvider extends ChangeNotifier {
         LeaderboardEntry(
           uid: myUid ?? '',
           name: _profile?.profile.name ?? 'Jij',
+          tag: _identity?.tag,
           wins: 0,
           losses: 0,
         );
@@ -79,12 +90,53 @@ class FriendsProvider extends ChangeNotifier {
     if (name.trim().isEmpty) return;
     if (_identity == null) {
       if (!_connecting) unawaited(connect());
-    } else if (name != _syncedName) {
-      _syncedName = name;
-      backend.updateName(name).catchError((Object e) {
-        debugPrint('friends updateName: $e');
-      });
+    } else {
+      if (name != _syncedName) {
+        _syncedName = name;
+        backend.updateName(name).catchError((Object e) {
+          debugPrint('friends updateName: $e');
+        });
+      }
+      _saveProgressIfChanged();
     }
+  }
+
+  void _saveProgressIfChanged() {
+    final profile = _profile?.profile;
+    if (profile == null || _syncedProgress == null) return;
+    final progress = profile.progressJson();
+    final key = '$progress';
+    if (key == _syncedProgress) return;
+    _syncedProgress = key;
+    backend.saveProgress(progress).catchError((Object e) {
+      debugPrint('saveProgress: $e');
+    });
+  }
+
+  /// Makes this phone and the server agree on XP and record.
+  ///
+  /// After an account switch the server wins (it is that account's data;
+  /// none means a fresh start). Otherwise the copy with the most XP wins,
+  /// so nothing is lost when one side is behind.
+  Future<void> _syncProgress({required bool adopt}) async {
+    final profile = _profile;
+    if (profile == null) return;
+    final remote = await backend.loadProgress();
+    final local = profile.profile;
+    final remoteProfile = remote == null ? null : local.withProgress(remote);
+
+    if (adopt) {
+      await profile.replaceProgress(remoteProfile ?? const PlayerProfile());
+    } else if (remoteProfile != null && remoteProfile.xp > local.xp) {
+      await profile.replaceProgress(remoteProfile);
+    }
+
+    final now = profile.profile.progressJson();
+    if (remote == null ||
+        '$now' != '${local.withProgress(remote).progressJson()}') {
+      await backend.saveProgress(now);
+    }
+    _syncedProgress = '$now';
   }
 
   /// Signs in and starts listening. Safe to call again after an error.
@@ -98,14 +150,37 @@ class FriendsProvider extends ChangeNotifier {
       _identity = await backend.signIn(name: name);
       _syncedName = name;
       _listen();
+      try {
+        await _syncProgress(adopt: _adoptRemote);
+        _adoptRemote = false;
+      } catch (e) {
+        debugPrint('syncProgress: $e');
+      }
     } catch (e) {
       debugPrint('friends signIn: $e');
+      // Firebase errors look like "[firebase_database/permission-denied] …":
+      // show the code so a rules problem is easy to spot.
+      final code = RegExp(r'\[[^/\]]+/([^\]]+)\]').firstMatch('$e')?.group(1);
       _error = e is FriendsException
           ? e.message
-          : 'Vrienden laden mislukt. Controleer je internet.';
+          : code == 'permission-denied'
+          ? 'Vrienden laden mislukt: geen toegang. Zijn de nieuwste '
+                'database-regels gepubliceerd?'
+          : 'Vrienden laden mislukt${code == null ? '' : ' ($code)'}. '
+                'Controleer je internet.';
     } finally {
       _connecting = false;
       _notify();
+    }
+  }
+
+  /// Resets your scorebord entry, e.g. after "Statistieken wissen".
+  Future<void> resetServerStats() async {
+    if (!isReady) return;
+    try {
+      await backend.resetStats();
+    } catch (e) {
+      debugPrint('resetStats: $e');
     }
   }
 
@@ -121,6 +196,8 @@ class FriendsProvider extends ChangeNotifier {
     _myStats = null;
     _sent.clear();
     _error = null;
+    _syncedProgress = null;
+    _adoptRemote = true;
     _notify();
     await connect();
   }

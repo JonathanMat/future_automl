@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../utils/player_tag.dart';
 import '../../validators/friend_code_validator.dart';
 import 'friends_backend.dart';
 
@@ -16,6 +17,7 @@ import 'friends_backend.dart';
 /// friendCodes/{code}: uid
 /// friendRequests/{toUid}/{fromUid}: {name, at}
 /// friends/{uid}/{friendUid}: <server ms since friends>
+/// invites/{toUid}/{fromUid}: {name, roomCode, at}   (challenges)
 /// leaderboard/{uid}: {name, wins, losses}   (written by the game backend)
 /// ```
 /// A friendship is stored on both sides. The rules only allow writing
@@ -31,6 +33,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
 
   String? _uid;
   String _name = 'Speler';
+  String? _tag;
 
   String get _me {
     final uid = _uid;
@@ -49,13 +52,23 @@ class FirebaseFriendsBackend implements FriendsBackend {
     _name = _clean(name);
 
     final me = _db.ref('users/$uid');
-    final existing = (await me.child('friendCode').get()).value;
-    if (existing is String && existing.isNotEmpty) {
-      await me.child('name').set(_name);
-      return FriendIdentity(uid: uid, friendCode: existing);
+    final existing = _asMap((await me.get()).value) ?? const {};
+    final random = Random.secure();
+
+    var tag = existing['tag'];
+    if (!PlayerTag.isValid(tag)) tag = PlayerTag.generate(random);
+    await me.update({'name': _name, 'tag': tag});
+    _tag = tag as String;
+    // Older leaderboard entries don't have the tag yet.
+    final board = _db.ref('leaderboard/$uid');
+    if ((await board.child('wins').get()).exists) {
+      await board.child('tag').set(tag);
     }
 
-    final random = Random.secure();
+    final code = existing['friendCode'];
+    if (code is String && code.isNotEmpty) {
+      return FriendIdentity(uid: uid, friendCode: code, tag: tag);
+    }
     for (var attempt = 0; attempt < 10; attempt++) {
       final code = FriendCodeValidator.generate(random);
       try {
@@ -65,8 +78,8 @@ class FirebaseFriendsBackend implements FriendsBackend {
         if (e.code == 'permission-denied') continue;
         rethrow;
       }
-      await me.set({'name': _name, 'friendCode': code});
-      return FriendIdentity(uid: uid, friendCode: code);
+      await me.child('friendCode').set(code);
+      return FriendIdentity(uid: uid, friendCode: code, tag: tag);
     }
     throw FriendsException('Kon geen vriendcode maken.');
   }
@@ -83,7 +96,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
     late final StreamController<List<Friend>> ctl;
     StreamSubscription<DatabaseEvent>? listSub;
     final perFriend = <String, List<StreamSubscription<DatabaseEvent>>>{};
-    final names = <String, String>{};
+    final profiles = <String, Map<Object?, Object?>>{};
     final stats = <String, Map<Object?, Object?>>{};
     var uids = <String>[];
     var loaded = false;
@@ -94,7 +107,11 @@ class FirebaseFriendsBackend implements FriendsBackend {
         for (final uid in uids)
           Friend(
             uid: uid,
-            name: names[uid] ?? stats[uid]?['name'] as String? ?? 'Speler',
+            name:
+                profiles[uid]?['name'] as String? ??
+                stats[uid]?['name'] as String? ??
+                'Speler',
+            tag: profiles[uid]?['tag'] as String?,
             wins: _asInt(stats[uid]?['wins']),
             losses: _asInt(stats[uid]?['losses']),
           ),
@@ -104,11 +121,11 @@ class FirebaseFriendsBackend implements FriendsBackend {
 
     void watch(String uid) {
       perFriend[uid] = [
-        _db.ref('users/$uid/name').onValue.listen((e) {
-          final v = e.snapshot.value;
-          if (v is String) names[uid] = v;
+        _db.ref('users/$uid').onValue.listen((e) {
+          final v = _asMap(e.snapshot.value);
+          if (v != null) profiles[uid] = v;
           emit();
-        }, onError: (Object e) => debugPrint('friend name $uid: $e')),
+        }, onError: (Object e) => debugPrint('friend profile $uid: $e')),
         _db.ref('leaderboard/$uid').onValue.listen((e) {
           final v = e.snapshot.value;
           if (v is Map) {
@@ -125,7 +142,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
       for (final s in perFriend.remove(uid) ?? const []) {
         await s.cancel();
       }
-      names.remove(uid);
+      profiles.remove(uid);
       stats.remove(uid);
     }
 
@@ -166,6 +183,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
               FriendRequest(
                 fromUid: c.key!,
                 name: _asMap(c.value)?['name'] as String? ?? 'Speler',
+                tag: _asMap(c.value)?['tag'] as String?,
               ),
         ];
       });
@@ -178,6 +196,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
         return LeaderboardEntry(
           uid: _me,
           name: v['name'] as String? ?? _name,
+          tag: v['tag'] as String? ?? _tag,
           wins: _asInt(v['wins']),
           losses: _asInt(v['losses']),
         );
@@ -208,6 +227,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
     }
     await _db.ref('friendRequests/$uid/$me').set({
       'name': _name,
+      'tag': ?_tag,
       'at': ServerValue.timestamp,
     });
     return AddFriendResult.requested;
@@ -229,6 +249,67 @@ class FirebaseFriendsBackend implements FriendsBackend {
   @override
   Future<void> remove(String uid) =>
       _db.ref().update({'friends/$_me/$uid': null, 'friends/$uid/$_me': null});
+
+  @override
+  Stream<List<ChallengeInvite>> invites() =>
+      _db.ref('invites/$_me').onValue.map((event) {
+        final list = <ChallengeInvite>[];
+        for (final c in event.snapshot.children) {
+          final v = _asMap(c.value);
+          if (c.key == null || v == null) continue;
+          list.add(
+            ChallengeInvite(
+              fromUid: c.key!,
+              name: v['name'] as String? ?? 'Speler',
+              tag: v['tag'] as String?,
+              roomCode: v['roomCode'] as String? ?? '',
+              sentAt: DateTime.fromMillisecondsSinceEpoch(_asInt(v['at'])),
+            ),
+          );
+        }
+        return list;
+      });
+
+  @override
+  Future<void> sendInvite(String toUid, String roomCode) =>
+      _db.ref('invites/$toUid/$_me').set({
+        'name': _name,
+        'tag': ?_tag,
+        'roomCode': roomCode,
+        'at': ServerValue.timestamp,
+      });
+
+  @override
+  Future<void> cancelInvite(String toUid) =>
+      _db.ref('invites/$toUid/$_me').remove();
+
+  @override
+  Future<void> dismissInvite(String fromUid) =>
+      _db.ref('invites/$_me/$fromUid').remove();
+
+  @override
+  Future<Map<String, Object?>?> loadProgress() async {
+    final v = _asMap((await _db.ref('users/$_me/progress').get()).value);
+    if (v == null) return null;
+    // Numbers come back as num; the profile model wants ints.
+    Object? clean(Object? x) => switch (x) {
+      final num n => n.toInt(),
+      final Map m => {for (final e in m.entries) '${e.key}': clean(e.value)},
+      _ => x,
+    };
+    return {for (final e in v.entries) '${e.key}': clean(e.value)};
+  }
+
+  @override
+  Future<void> saveProgress(Map<String, Object?> progress) =>
+      _db.ref('users/$_me/progress').set(progress);
+
+  @override
+  Future<void> resetStats() async {
+    final board = _db.ref('leaderboard/$_me');
+    if (!(await board.child('wins').get()).exists) return;
+    await board.update({'wins': 0, 'losses': 0});
+  }
 
   @override
   Future<void> dispose() async {}

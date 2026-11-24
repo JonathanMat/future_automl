@@ -7,6 +7,7 @@ import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../generic/app_card.dart';
+import '../generic/app_logo.dart';
 import '../generic/spell_orb.dart';
 
 /// Title card with the four spells and a one-line rules summary.
@@ -22,6 +23,8 @@ class SpellHeroCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
       child: Column(
         children: [
+          const AppLogo(size: 92),
+          const SizedBox(height: 10),
           Text(AppConstants.season, style: AppTextStyles.overline()),
           const SizedBox(height: 6),
           Semantics(

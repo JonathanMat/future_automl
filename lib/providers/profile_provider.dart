@@ -96,6 +96,21 @@ class ProfileProvider extends ChangeNotifier {
     await _storage.saveFriends(_friends);
   }
 
+  /// Replaces XP, record and last duel, e.g. with what the server has for
+  /// this account. Keeps the name.
+  Future<void> replaceProgress(PlayerProfile progress) async {
+    _profile = PlayerProfile(
+      name: _profile.name,
+      xp: progress.xp,
+      wins: progress.wins,
+      losses: progress.losses,
+      streak: progress.streak,
+      lastDuel: progress.lastDuel,
+    );
+    notifyListeners();
+    await _storage.saveProfile(_profile);
+  }
+
   /// Clears XP, record and recent opponents. Keeps the name and the
   /// friends on the server.
   Future<void> resetStats() async {

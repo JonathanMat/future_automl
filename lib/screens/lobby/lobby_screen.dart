@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../navigators/app_router.dart';
+import '../../providers/challenge_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../services/game/game_backend.dart';
@@ -14,6 +15,7 @@ import '../../utils/extensions.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/screen_header.dart';
 import '../../widgets/generic/stat_tile.dart';
+import '../../widgets/lobby/challenge_waiting_card.dart';
 import '../../widgets/lobby/lobby_player_card.dart';
 import '../../widgets/lobby/room_code_card.dart';
 import '../../widgets/lobby/video_share_card.dart';
@@ -66,7 +68,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     if (_leaving) return;
     _leaving = true;
     final game = context.read<GameProvider>();
+    final challenges = context.read<ChallengeProvider>();
     Navigator.of(context).pop();
+    await challenges.cancelOutgoing();
     await game.leave();
   }
 
@@ -98,6 +102,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       if (!mounted || _leaving) return;
       _leaving = true;
       final game = context.read<GameProvider>();
+      context.read<ChallengeProvider>().cancelOutgoing();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -115,6 +120,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     final config = s.config;
     final opponent = s.opponent;
+    final challenges = context.watch<ChallengeProvider>();
+    // Waiting for a challenged friend (null once they join).
+    final challenge = opponent == null ? challenges.outgoing : null;
 
     return PopScope(
       canPop: false,
@@ -129,9 +137,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(AppSpacing.screen),
                   children: [
-                    ScreenHeader(title: 'Duel-kamer', onBack: _leave),
+                    ScreenHeader(
+                      title: challenge != null ? 'Uitdaging' : 'Duel-kamer',
+                      onBack: _leave,
+                    ),
                     const SizedBox(height: 20),
-                    if (s.roomCode != null)
+                    if (challenge != null)
+                      ChallengeWaitingCard(
+                        challenge: challenge,
+                        expiresAt: challenges.outgoingExpiresAt!,
+                        roomCode: s.roomCode,
+                      )
+                    else if (s.roomCode != null)
                       RoomCodeCard(code: s.roomCode!)
                     else
                       const _OpeningRoomCard(),
@@ -152,9 +169,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           Expanded(
                             child: LobbyPlayerCard(
                               name: opponent?.name,
-                              subtitle: opponent == null
-                                  ? 'Deel de code'
-                                  : _friendSubtitle(profile, opponent.name),
+                              invitedName: challenge?.name,
+                              subtitle: opponent != null
+                                  ? _friendSubtitle(profile, opponent.name)
+                                  : challenge != null
+                                  ? 'Uitgenodigd'
+                                  : 'Deel de code',
                               online: opponent?.online ?? true,
                             ),
                           ),
@@ -216,9 +236,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   24,
                 ),
                 child: ChunkyButton(
-                  label: opponent == null
-                      ? 'WACHTEN OP TEGENSTANDER'
-                      : 'START DUEL',
+                  label: opponent != null
+                      ? 'START DUEL'
+                      : challenge != null
+                      ? 'WACHTEN OP ${challenge.name.toUpperCase()}'
+                      : 'WACHTEN OP TEGENSTANDER',
                   fontSize: opponent == null ? 18 : 24,
                   onPressed: opponent == null ? null : _goToDuel,
                 ),

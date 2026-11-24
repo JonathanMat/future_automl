@@ -4,7 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_transitions.dart';
 
-/// Two-option pill switch ("Vrienden" / "Campus").
+/// Two-option pill switch ("Vrienden" / "Global").
 class SegmentedTabs extends StatelessWidget {
   const SegmentedTabs({
     super.key,

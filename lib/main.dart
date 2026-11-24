@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'navigators/app_router.dart';
 import 'providers/account_provider.dart';
+import 'providers/challenge_provider.dart';
 import 'providers/friends_provider.dart';
 import 'providers/game_provider.dart';
 import 'providers/profile_provider.dart';
@@ -15,13 +16,14 @@ import 'services/game/firebase/firebase_game_backend.dart';
 import 'services/game/game_backend.dart';
 import 'services/game/mock_game_backend.dart';
 import 'services/permissions/camera_permission_service.dart';
+import 'services/push/push_service.dart';
 import 'services/recognition/mediapipe_spell_recognizer.dart';
 import 'services/recognition/spell_recognizer.dart';
 import 'services/social/firebase_friends_backend.dart';
 import 'services/social/friends_backend.dart';
 import 'services/social/mock_friends_backend.dart';
 import 'services/storage/local_storage_service.dart';
-import 'theme/app_colors.dart'; 
+import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
 
@@ -42,6 +44,7 @@ Future<void> main() async {
   final GameBackend backend;
   final FriendsBackend friends;
   final AccountService account;
+  PushService push = const NoPushService();
   if (_backendKind == 'firebase') {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -49,6 +52,7 @@ Future<void> main() async {
     backend = FirebaseGameBackend();
     friends = FirebaseFriendsBackend();
     account = FirebaseAccountService();
+    push = FirebasePushService();
   } else {
     backend = MockGameBackend(useCamera: _cameraOn);
     friends = MockFriendsBackend();
@@ -64,6 +68,7 @@ Future<void> main() async {
       backend: backend,
       friends: friends,
       account: account,
+      push: push,
       profile: profile,
       // The Firebase call sends audio too, so it also needs the microphone.
       cameraPermission: CameraPermissionService(
@@ -85,6 +90,7 @@ class SpellDuelApp extends StatefulWidget {
     required this.profile,
     this.friends,
     this.account,
+    this.push = const NoPushService(),
     this.recognizer = const ManualSpellRecognizer(),
     this.cameraPermission = const CameraPermissionService(enabled: false),
   });
@@ -97,6 +103,7 @@ class SpellDuelApp extends StatefulWidget {
 
   /// Defaults to [MockAccountService].
   final AccountService? account;
+  final PushService push;
   final SpellRecognizer recognizer;
   final CameraPermissionService cameraPermission;
 
@@ -108,17 +115,33 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
   late final AppRouter _router = AppRouter(widget.backend);
   // Created here (not lazily) so they sign in at startup and requests
   // show up right away.
-  late final FriendsProvider _friends = FriendsProvider(
-    widget.friends ?? MockFriendsBackend(),
-  )..attach(widget.profile);
+  late final FriendsBackend _friendsBackend =
+      widget.friends ?? MockFriendsBackend();
+  late final FriendsProvider _friends = FriendsProvider(_friendsBackend)
+    ..attach(widget.profile);
+  late final GameProvider _game = GameProvider(
+    backend: widget.backend,
+    recognizer: widget.recognizer,
+    cameraPermission: widget.cameraPermission,
+    onGameFinished: widget.profile.recordGame,
+  );
+  late final ChallengeProvider _challenges = ChallengeProvider(
+    backend: _friendsBackend,
+    friends: _friends,
+    game: _game,
+    push: widget.push,
+  );
   late final AccountProvider _account = AccountProvider(
     widget.account ?? MockAccountService(),
     onUserChanged: _friends.restart,
+    beforeSignOut: _challenges.unregisterPush,
   );
 
   @override
   void dispose() {
     _account.dispose();
+    _challenges.dispose();
+    _game.dispose();
     _friends.dispose();
     super.dispose();
   }
@@ -130,14 +153,8 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
         ChangeNotifierProvider.value(value: widget.profile),
         ChangeNotifierProvider.value(value: _friends),
         ChangeNotifierProvider.value(value: _account),
-        ChangeNotifierProvider(
-          create: (_) => GameProvider(
-            backend: widget.backend,
-            recognizer: widget.recognizer,
-            cameraPermission: widget.cameraPermission,
-            onGameFinished: widget.profile.recordGame,
-          ),
-        ),
+        ChangeNotifierProvider.value(value: _game),
+        ChangeNotifierProvider.value(value: _challenges),
       ],
       child: MaterialApp(
         title: AppConstants.appName,
