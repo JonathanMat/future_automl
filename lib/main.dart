@@ -21,7 +21,7 @@ import 'services/social/firebase_friends_backend.dart';
 import 'services/social/friends_backend.dart';
 import 'services/social/mock_friends_backend.dart';
 import 'services/storage/local_storage_service.dart';
-import 'theme/app_colors.dart';
+import 'theme/app_colors.dart'; 
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
 

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../../models/game_rules.dart';
+import 'fire_layers.dart';
 import 'fx_core.dart';
 
 /// Two equal spells pushing against each other in the middle before they
@@ -21,6 +22,7 @@ class ClashStruggleLayer extends FxLayer {
     int seed = 30,
   }) {
     final rnd = Random(seed);
+    if (spell == Spell.vuur) _jets = FlameJets(duration: duration, seed: seed);
     _sparks = [
       for (var i = 0; i < 90; i++)
         (
@@ -36,6 +38,9 @@ class ClashStruggleLayer extends FxLayer {
   }
 
   final Spell spell;
+
+  /// Fire only: real flames gushing out of the contact point.
+  FlameJets? _jets;
 
   /// The meeting point when nobody is winning.
   final FxPoint at;
@@ -104,7 +109,7 @@ class ClashStruggleLayer extends FxLayer {
 
     switch (spell) {
       case Spell.vuur:
-        _flames(canvas, c, perp, t, k);
+        _jets?.paint(canvas, t, (at) => this.at(ctx) + push(at), k);
       case Spell.ijs:
         _iceCrystal(canvas, c, t, k);
       case Spell.bliksem:
@@ -173,22 +178,6 @@ class ClashStruggleLayer extends FxLayer {
     final overload = span(k, .75, 1);
     if (overload > 0) {
       drawGlow(canvas, c, 60 * overload, Colors.white, opacity: .8 * overload);
-    }
-  }
-
-  void _flames(Canvas canvas, Offset c, Offset perp, double t, double k) {
-    for (var i = 0; i < 12; i++) {
-      final side = i.isEven ? 1.0 : -1.0;
-      final reach = 14 + (i ~/ 2) * 9 * (1 + k) + 6 * sin(t * 40 + i);
-      final lift = -8 * sin(t * 23 + i * 1.7);
-      drawGlow(
-        canvas,
-        c + perp * (side * reach) + Offset(0, lift),
-        18 - (i ~/ 2) * 1.6,
-        firePalette[2 + i % 3],
-        opacity: .75,
-        core: .2,
-      );
     }
   }
 

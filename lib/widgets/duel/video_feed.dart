@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../theme/app_colors.dart';
+import '../../theme/app_text_styles.dart';
 import '../../theme/app_transitions.dart';
 
 /// A rounded video panel with overlays. Shows a hand placeholder when
@@ -88,9 +89,11 @@ class _VideoFeedState extends State<VideoFeed> {
           )
         : (widget.placeholder ?? const _HandPlaceholder());
 
+    // Hide at once (a gesture must never show), reveal smoothly.
+    final hideNow = widget.blurred ? Duration.zero : AppTransitions.medium;
     content = TweenAnimationBuilder<double>(
-      tween: Tween(end: widget.blurred ? 18 : 0),
-      duration: AppTransitions.medium,
+      tween: Tween(end: widget.blurred ? _hiddenBlur : 0),
+      duration: hideNow,
       builder: (context, sigma, child) => sigma < 0.5
           ? child!
           : ImageFiltered(
@@ -133,6 +136,15 @@ class _VideoFeedState extends State<VideoFeed> {
               ),
             ),
             content,
+            // Dark veil on top of the blur, so nothing shows through even
+            // where a device blurs the video weakly.
+            IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: widget.blurred ? 1 : 0,
+                duration: hideNow,
+                child: const _HiddenVeil(),
+              ),
+            ),
             const Positioned(
               left: 0,
               right: 0,
@@ -151,6 +163,50 @@ class _VideoFeedState extends State<VideoFeed> {
               ),
             ),
             ...widget.overlays,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _hiddenBlur = 40.0;
+
+class _HiddenVeil extends StatelessWidget {
+  const _HiddenVeil();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xDB0E0B1F),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surfaceRaised,
+                border: Border.all(color: AppColors.borderStrong),
+              ),
+              child: const Icon(
+                Icons.lock_rounded,
+                color: AppColors.lavender,
+                size: 20,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'VERBORGEN TOT DE ONTHULLING',
+              style: AppTextStyles.body(
+                11,
+                weight: FontWeight.w900,
+                color: AppColors.textFeed,
+                letterSpacing: 1.2,
+              ),
+            ),
           ],
         ),
       ),

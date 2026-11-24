@@ -53,6 +53,9 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
   int? _playedRound;
   final Set<int> _firedImpacts = {};
 
+  /// Colour filters for the cameras, applied by [FxTintTarget]s.
+  final _tints = ValueNotifier<Map<FxSide, ColorFilter>>(const {});
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +73,7 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
   @override
   void dispose() {
     _ticker.dispose();
+    _tints.dispose();
     super.dispose();
   }
 
@@ -114,7 +118,20 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
       _ticker.stop();
       _planned = null;
     }
+    _updateTints();
     setState(() {});
+  }
+
+  void _updateTints() {
+    final planned = _planned;
+    final next = <FxSide, ColorFilter>{};
+    if (planned != null) {
+      for (final tint in planned.tints) {
+        if (tint.strength(_t) > 0) next[tint.side] = tint.filter(_t);
+      }
+    }
+    if (next.isEmpty && _tints.value.isEmpty) return;
+    _tints.value = next;
   }
 
   /// Where the two cameras are, relative to this layer.
@@ -130,7 +147,12 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
     final top = rectOf(widget.topKey);
     final bottom = rectOf(widget.bottomKey);
     if (top == null || bottom == null) return null;
-    return FxContext(size: stack.size, top: top, bottom: bottom);
+    return FxContext(
+      size: stack.size,
+      top: top,
+      bottom: bottom,
+      pixelRatio: MediaQuery.devicePixelRatioOf(context),
+    );
   }
 
   Offset _shake(SpellFx fx, double t) {
@@ -153,47 +175,76 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
     if (scrub != null) {
       _ticker.stop();
       _t = scrub;
-      if (_ctx == null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _ctx = _measure());
-        });
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _updateTints();
+        if (_ctx == null) setState(() => _ctx = _measure());
+      });
     }
     final planned = _planned;
     final ctx = _ctx;
     final active = planned != null && ctx != null;
 
-    return Transform.translate(
-      offset: active ? _shake(planned.fx, _t) : Offset.zero,
-      child: Stack(
-        key: _stackKey,
-        children: [
-          widget.child,
-          if (active) ...[
-            for (final tint in planned.tints)
-              if (tint.strength(_t) > 0)
-                Positioned.fromRect(
-                  rect: ctx.rect(tint.side),
-                  child: IgnorePointer(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(FxContext.feedRadius),
-                      child: BackdropFilter(
-                        filter: tint.filter(_t),
-                        child: const SizedBox.expand(),
-                      ),
+    return _TintScope(
+      tints: _tints,
+      child: Transform.translate(
+        offset: active ? _shake(planned.fx, _t) : Offset.zero,
+        child: Stack(
+          key: _stackKey,
+          children: [
+            // Separate layers, so redrawing the effect every frame does not
+            // repaint the whole duel screen underneath.
+            RepaintBoundary(child: widget.child),
+            if (active)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _SpellFxPainter(planned.fx, ctx, _t),
                     ),
                   ),
                 ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _SpellFxPainter(planned.fx, ctx, _t),
-                ),
               ),
-            ),
           ],
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _TintScope extends InheritedWidget {
+  const _TintScope({required this.tints, required super.child});
+
+  final ValueNotifier<Map<FxSide, ColorFilter>> tints;
+
+  @override
+  bool updateShouldNotify(_TintScope old) => old.tints != tints;
+}
+
+/// Wrap a camera feed in this so effects can tint its video (frozen blue,
+/// fire orange, lightning negative). A colour filter on the feed itself is
+/// much cheaper on phones than a backdrop filter over it.
+class FxTintTarget extends StatelessWidget {
+  const FxTintTarget({super.key, required this.side, required this.child});
+
+  final FxSide side;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tints = context
+        .dependOnInheritedWidgetOfExactType<_TintScope>()
+        ?.tints;
+    if (tints == null) return child;
+    return ValueListenableBuilder<Map<FxSide, ColorFilter>>(
+      valueListenable: tints,
+      child: child,
+      builder: (context, map, child) {
+        final filter = map[side];
+        return filter == null
+            ? child!
+            : ColorFiltered(colorFilter: filter, child: child);
+      },
     );
   }
 }

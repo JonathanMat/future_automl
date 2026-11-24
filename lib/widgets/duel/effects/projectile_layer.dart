@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../models/game_rules.dart';
+import 'fire_layers.dart';
 import 'fx_core.dart';
 
 /// A spell flying from one point to another: a short charge-up at the
@@ -35,7 +36,18 @@ class ProjectileLayer extends FxLayer {
           size: 1.5 + _rnd.nextDouble() * 2.5,
         ),
     ];
+    if (spell == Spell.vuur) {
+      _fire = FireProjectile(
+        charge: charge,
+        flight: flight,
+        hold: hold,
+        seed: seed,
+      );
+    }
   }
+
+  /// Fire is drawn with real flames (see fire_layers.dart).
+  FireProjectile? _fire;
 
   final Spell spell;
   final FxPoint from;
@@ -73,6 +85,18 @@ class ProjectileLayer extends FxLayer {
     Offset dirAt(double u) {
       final d = at(u + .02) - at(u - .02);
       return d.distance == 0 ? const Offset(0, 1) : d / d.distance;
+    }
+
+    if (_fire case final fire?) {
+      fire.paint(
+        canvas,
+        t,
+        start: a,
+        at: at,
+        dirAt: dirAt,
+        heldAt: (held) => b + (wobble?.call(held) ?? Offset.zero),
+      );
+      return;
     }
 
     if (t < charge) {
