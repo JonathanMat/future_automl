@@ -144,6 +144,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: profile.setShareVideo,
             ),
             const SizedBox(height: 14),
+            VoiceChatCard(
+              value: profile.voiceChat,
+              onChanged: profile.setVoiceChat,
+            ),
+            const SizedBox(height: 14),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

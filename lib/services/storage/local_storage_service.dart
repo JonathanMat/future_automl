@@ -60,6 +60,12 @@ class LocalStorageService {
   Future<void> saveShareVideo(bool value) async =>
       (await _p).setBool(AppConstants.shareVideoKey, value);
 
+  Future<bool> loadVoiceChat() async =>
+      (await _p).getBool(AppConstants.voiceChatKey) ?? true;
+
+  Future<void> saveVoiceChat(bool value) async =>
+      (await _p).setBool(AppConstants.voiceChatKey, value);
+
   Future<void> clearStats() async {
     final p = await _p;
     await p.remove(AppConstants.friendsKey);

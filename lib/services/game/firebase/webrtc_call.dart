@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../../models/game_state.dart';
+import 'audio_session.dart';
 import 'ice_config.dart';
 
 /// A 1-on-1 video call. Firebase is only used to exchange the connection
@@ -23,11 +24,16 @@ class WebRtcCall {
     required this.signaling,
     required this.isCaller,
     this.ice = const IceConfig(),
+    this.audio = true,
   });
 
   final DatabaseReference signaling;
   final bool isCaller;
   final IceConfig ice;
+
+  /// Voice chat. Off: no microphone, the opponent's audio is muted and the
+  /// phone stays in normal media mode (volume can go to 0).
+  final bool audio;
 
   MediaStream? _localStream;
   RTCPeerConnection? _pc;
@@ -48,8 +54,10 @@ class WebRtcCall {
   /// Opens camera + microphone. Call before [connect], so the UI can show
   /// the own camera while waiting for the opponent.
   Future<MediaStream> openCamera() async {
-    return _localStream ??= await navigator.mediaDevices.getUserMedia({
-      'audio': true,
+    if (_localStream case final s?) return s;
+    await AudioSession.configure(voice: audio);
+    return _localStream = await navigator.mediaDevices.getUserMedia({
+      'audio': audio,
       'video': {
         'facingMode': 'user',
         'width': {'ideal': 640},
@@ -79,6 +87,8 @@ class WebRtcCall {
       });
     };
     pc.onTrack = (event) {
+      // Voice chat off: don't play the opponent's sound.
+      if (!audio && event.track.kind == 'audio') event.track.enabled = false;
       if (event.streams.isNotEmpty) _remoteCtl.add(event.streams.first);
     };
     pc.onConnectionState = (state) {
@@ -185,8 +195,11 @@ class WebRtcCall {
     for (final sub in _subs) {
       await sub.cancel();
     }
-    await _pc?.close();
+    final pc = _pc;
     _pc = null;
+    await pc?.close();
+    // dispose() (not only close()) lets flutter_webrtc leave call mode.
+    await pc?.dispose();
     final stream = _localStream;
     _localStream = null;
     if (stream != null) {

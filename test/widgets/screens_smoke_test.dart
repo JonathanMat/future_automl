@@ -97,7 +97,7 @@ void main() {
 
     await tester.tap(find.text('Vrienden'));
     await pumpFor(tester, const Duration(milliseconds: 500));
-    expect(find.text('NIEUW DUEL'), findsOneWidget);
+    expect(find.text('JOUW VRIENDCODE'), findsOneWidget);
 
     await tester.tap(find.text('Scorebord').last);
     await pumpFor(tester, const Duration(milliseconds: 500));

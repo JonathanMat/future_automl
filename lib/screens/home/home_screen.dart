@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/friends/challenge_banner.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/chunky_button.dart';
+import '../../widgets/generic/crossed_swords_icon.dart';
 import '../../widgets/generic/stat_tile.dart';
 import '../../widgets/home/join_room_row.dart';
 import '../../widgets/home/profile_header.dart';
@@ -52,7 +53,8 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 20),
             ChunkyButton(
               label: 'DUEL STARTEN',
-              icon: Icons.auto_fix_high_rounded,
+              iconBuilder: (color, size) =>
+                  CrossedSwordsIcon(color: color, size: size + 4),
               loading: game.busy,
               onPressed: () => RoomFlow.create(context),
             ),

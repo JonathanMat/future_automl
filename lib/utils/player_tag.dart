@@ -11,6 +11,17 @@ abstract final class PlayerTag {
 
   static bool isValid(Object? tag) => tag is String && _pattern.hasMatch(tag);
 
+  /// Reads a tag from the database. Accepts a number too (e.g. typed in
+  /// the Firebase console without quotes); anything else is null.
+  static String? parse(Object? value) {
+    final s = switch (value) {
+      final String v => v,
+      final num v => v.toInt().toString().padLeft(4, '0'),
+      _ => null,
+    };
+    return isValid(s) ? s : null;
+  }
+
   /// "#4821", or empty when there is no tag.
   static String format(String? tag) =>
       tag == null || tag.isEmpty ? '' : '#$tag';

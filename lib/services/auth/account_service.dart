@@ -18,7 +18,7 @@ enum GoogleSignInOutcome {
   linked,
 
   /// That Google account already had Spell Duel data: switched to it.
-  /// The guest's friends and scores stay behind.
+  /// The guest account (and its data) is deleted.
   switched,
 
   /// The player closed the Google dialog.

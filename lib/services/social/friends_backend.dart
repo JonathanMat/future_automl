@@ -73,9 +73,14 @@ class FriendIdentity {
     required this.uid,
     required this.friendCode,
     required this.tag,
+    this.name,
   });
 
   final String uid;
+
+  /// The name saved in this account (after [FriendsBackend.signIn] with
+  /// `keepServerName`), null if it had none.
+  final String? name;
 
   /// Public tag shown after your name ("#4821"). Not the friend code.
   final String tag;
@@ -91,7 +96,13 @@ class FriendIdentity {
 /// without Firebase.
 abstract class FriendsBackend {
   /// Signs in and makes sure this player has a profile and a friend code.
-  Future<FriendIdentity> signIn({required String name});
+  ///
+  /// [keepServerName]: an existing account keeps its saved name (after
+  /// switching account) instead of taking [name] from this phone.
+  Future<FriendIdentity> signIn({
+    required String name,
+    bool keepServerName = false,
+  });
 
   /// Updates the name your friends see.
   Future<void> updateName(String name);
@@ -137,6 +148,11 @@ abstract class FriendsBackend {
 
   /// Sets your scorebord entry back to 0 wins and 0 losses.
   Future<void> resetStats();
+
+  /// Deletes everything of the signed-in player: profile, friend code,
+  /// scorebord entry, friendships and push tokens. Used for a guest that
+  /// is left behind when logging into an existing Google account.
+  Future<void> deleteMyData();
 
   Future<void> dispose();
 }

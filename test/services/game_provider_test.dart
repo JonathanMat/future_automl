@@ -126,7 +126,8 @@ class FakeCameraPermission extends CameraPermissionService {
   final MediaAccess result;
 
   @override
-  Future<MediaAccess> ensureAccess() async => result;
+  Future<MediaAccess> ensureAccess({bool withMicrophone = true}) async =>
+      result;
 }
 
 class _FailingBackend extends MockGameBackend {

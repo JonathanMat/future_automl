@@ -116,7 +116,9 @@ class GameProvider extends ChangeNotifier {
   /// Asks for the camera before touching the backend, so a refusal never
   /// leaves a half-made room behind.
   Future<bool> _checkCamera() async {
-    _mediaAccess = await cameraPermission.ensureAccess();
+    _mediaAccess = await cameraPermission.ensureAccess(
+      withMicrophone: backend.voiceChat,
+    );
     final message = _cameraMessage(_mediaAccess);
     if (message != null) _actionError = message;
     return message == null;

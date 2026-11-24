@@ -37,6 +37,7 @@ class AccountCard extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.redSoft),
             child: const Text('Uitloggen'),
           ),
         ],

@@ -18,6 +18,7 @@ class ProfileProvider extends ChangeNotifier {
   PlayerProfile _profile = const PlayerProfile();
   List<FriendRecord> _friends = const [];
   bool _shareVideo = true;
+  bool _voiceChat = true;
   bool _loaded = false;
 
   PlayerProfile get profile => _profile;
@@ -25,12 +26,17 @@ class ProfileProvider extends ChangeNotifier {
   /// Recent opponents, most recently played first. Stored on this phone.
   List<FriendRecord> get friends => _friends;
   bool get shareVideo => _shareVideo;
+
+  /// Talk to your opponent during a duel. Off: no microphone and no sound
+  /// from the opponent.
+  bool get voiceChat => _voiceChat;
   bool get isLoaded => _loaded;
 
   Future<void> load() async {
     _profile = await _storage.loadProfile();
     _friends = await _storage.loadFriends();
     _shareVideo = await _storage.loadShareVideo();
+    _voiceChat = await _storage.loadVoiceChat();
     _loaded = true;
     notifyListeners();
   }
@@ -45,6 +51,12 @@ class ProfileProvider extends ChangeNotifier {
     _shareVideo = value;
     notifyListeners();
     await _storage.saveShareVideo(value);
+  }
+
+  Future<void> setVoiceChat(bool value) async {
+    _voiceChat = value;
+    notifyListeners();
+    await _storage.saveVoiceChat(value);
   }
 
   /// XP a game is worth, so the result screen can show it before saving.

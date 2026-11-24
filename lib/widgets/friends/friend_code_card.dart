@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../generic/app_card.dart';
+import '../generic/copy_button.dart';
 import '../generic/player_name.dart';
 
 /// Your own friend code, with a copy button. Shows a spinner while [code]
@@ -16,14 +16,6 @@ class FriendCodeCard extends StatelessWidget {
   /// Your name and tag, shown as "Zo zien anderen je: Jan #4821".
   final String? name;
   final String? tag;
-
-  Future<void> _copy(BuildContext context, String code) async {
-    await Clipboard.setData(ClipboardData(text: code));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Vriendcode $code gekopieerd.')));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,10 +81,10 @@ class FriendCodeCard extends StatelessWidget {
             ),
           ),
           if (code != null)
-            IconButton(
+            CopyButton(
+              text: code,
               tooltip: 'Kopieer vriendcode',
-              onPressed: () => _copy(context, code),
-              icon: const Icon(Icons.copy_rounded, color: AppColors.textSoft),
+              message: 'Vriendcode $code gekopieerd.',
             ),
         ],
       ),

@@ -147,8 +147,19 @@ class FriendsProvider extends ChangeNotifier {
     _error = null;
     _notify();
     try {
-      _identity = await backend.signIn(name: name);
-      _syncedName = name;
+      final adopt = _adoptRemote;
+      final identity = _identity = await backend.signIn(
+        name: name,
+        keepServerName: adopt,
+      );
+      final serverName = identity.name;
+      if (adopt && serverName != null && serverName != name) {
+        // The account we switched to has its own name: show that one.
+        _syncedName = serverName;
+        await _profile?.setName(serverName);
+      } else {
+        _syncedName = name;
+      }
       _listen();
       try {
         await _syncProgress(adopt: _adoptRemote);

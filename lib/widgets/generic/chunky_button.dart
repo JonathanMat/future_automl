@@ -15,6 +15,7 @@ class ChunkyButton extends StatefulWidget {
     required this.onPressed,
     this.style = ChunkyButtonStyle.primary,
     this.icon,
+    this.iconBuilder,
     this.height = 64,
     this.fontSize,
     this.display = true,
@@ -26,6 +27,9 @@ class ChunkyButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final ChunkyButtonStyle style;
   final IconData? icon;
+
+  /// A custom icon instead of [icon], drawn in the button's ink colour.
+  final Widget Function(Color color, double size)? iconBuilder;
   final double height;
   final double? fontSize;
 
@@ -122,7 +126,10 @@ class _ChunkyButtonState extends State<ChunkyButton> {
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (widget.icon != null) ...[
+                                if (widget.iconBuilder != null) ...[
+                                  widget.iconBuilder!(c.ink, fontSize),
+                                  const SizedBox(width: 10),
+                                ] else if (widget.icon != null) ...[
                                   Icon(
                                     widget.icon,
                                     color: c.ink,

@@ -11,8 +11,21 @@ class MockFriendsBackend implements FriendsBackend {
   MockFriendsBackend({
     List<FriendRequest> seedRequests = const [],
     List<ChallengeInvite> seedInvites = const [],
+    List<Friend> seedFriends = const [],
   }) : _requests = [...seedRequests],
-       _invites = [...seedInvites];
+       _invites = [...seedInvites] {
+    for (final f in seedFriends) {
+      _friends[f.uid] = f;
+    }
+  }
+
+  /// Demo friends for `--dart-define=BACKEND=mock`, so the "Vrienden"
+  /// scorebord has something to show.
+  static const demoFriends = [
+    Friend(uid: 'demo-0', name: 'Lotte', tag: '2101', wins: 14, losses: 5),
+    Friend(uid: 'demo-3', name: 'Daan', tag: '4312', wins: 7, losses: 8),
+    Friend(uid: 'demo-5', name: 'Milan', tag: '5786', wins: 4, losses: 6),
+  ];
 
   static const myCode = 'TEST42';
   static const myTag = '1234';
@@ -29,8 +42,10 @@ class MockFriendsBackend implements FriendsBackend {
   final _requestsCtl = StreamController<List<FriendRequest>>.broadcast();
 
   @override
-  Future<FriendIdentity> signIn({required String name}) async =>
-      const FriendIdentity(uid: _myUid, friendCode: myCode, tag: myTag);
+  Future<FriendIdentity> signIn({
+    required String name,
+    bool keepServerName = false,
+  }) async => const FriendIdentity(uid: _myUid, friendCode: myCode, tag: myTag);
 
   @override
   Future<void> updateName(String name) async {}
@@ -143,6 +158,18 @@ class MockFriendsBackend implements FriendsBackend {
   @override
   Future<void> saveProgress(Map<String, Object?> progress) async =>
       savedProgress = progress;
+
+  /// Set by [deleteMyData] (for tests).
+  bool deleted = false;
+
+  @override
+  Future<void> deleteMyData() async {
+    deleted = true;
+    _friends.clear();
+    savedProgress = null;
+    board = null;
+    _emit();
+  }
 
   @override
   Future<void> dispose() async {

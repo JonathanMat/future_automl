@@ -14,6 +14,11 @@ export '../../models/game_state.dart';
 /// Use [FirebaseGameBackend] for real games and [MockGameBackend] to build
 /// the UI without Firebase or a second phone.
 abstract class GameBackend {
+  /// Voice chat in the next room (microphone + opponent's audio). Set it
+  /// before [createRoom] / [joinRoom].
+  bool get voiceChat;
+  set voiceChat(bool value);
+
   /// Current state. Also emitted on [gameState].
   GameState get state;
 

@@ -21,6 +21,10 @@ class MockGameBackend implements GameBackend {
 
   final GameConfig config;
 
+  /// The mock never uses audio.
+  @override
+  bool voiceChat = true;
+
   /// Open the real camera. Turn off in widget tests.
   final bool useCamera;
 
@@ -239,8 +243,28 @@ class MockGameBackend implements GameBackend {
         wins: _wins,
         losses: _losses,
       ),
-    ];
+      // Demo players, so the scorebord (and its animations) can be tried
+      // without a Firebase account full of test data.
+      for (final (i, (name, w, l)) in _demoPlayers.indexed)
+        LeaderboardEntry(
+          uid: 'demo-$i',
+          name: name,
+          tag: '${2101 + i * 737}',
+          wins: w,
+          losses: l,
+        ),
+    ].take(limit).toList();
   }
+
+  static const _demoPlayers = [
+    ('Lotte', 14, 5),
+    ('Jonas', 11, 7),
+    ('Amira', 9, 4),
+    ('Daan', 7, 8),
+    ('Noor', 6, 3),
+    ('Milan', 4, 6),
+    ('Sofie', 2, 5),
+  ];
 
   @override
   Future<void> leaveRoom() async {

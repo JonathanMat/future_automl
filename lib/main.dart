@@ -50,12 +50,15 @@ Future<void> main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     backend = FirebaseGameBackend();
-    friends = FirebaseFriendsBackend();
-    account = FirebaseAccountService();
+    final firebaseFriends = FirebaseFriendsBackend();
+    friends = firebaseFriends;
+    account = FirebaseAccountService(
+      discardGuestData: firebaseFriends.deleteMyData,
+    );
     push = FirebasePushService();
   } else {
     backend = MockGameBackend(useCamera: _cameraOn);
-    friends = MockFriendsBackend();
+    friends = MockFriendsBackend(seedFriends: MockFriendsBackend.demoFriends);
     account = MockAccountService();
   }
 
@@ -138,7 +141,17 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    _applyVoiceChat();
+    widget.profile.addListener(_applyVoiceChat);
+  }
+
+  void _applyVoiceChat() => widget.backend.voiceChat = widget.profile.voiceChat;
+
+  @override
   void dispose() {
+    widget.profile.removeListener(_applyVoiceChat);
     _account.dispose();
     _challenges.dispose();
     _game.dispose();

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../utils/db_values.dart';
 import '../../utils/player_tag.dart';
 import '../../validators/friend_code_validator.dart';
 import 'friends_backend.dart';
@@ -42,7 +43,10 @@ class FirebaseFriendsBackend implements FriendsBackend {
   }
 
   @override
-  Future<FriendIdentity> signIn({required String name}) async {
+  Future<FriendIdentity> signIn({
+    required String name,
+    bool keepServerName = false,
+  }) async {
     // Wait for the saved login to be restored, so a returning player
     // doesn't get a fresh anonymous account.
     final restored = await _auth.authStateChanges().first;
@@ -55,10 +59,11 @@ class FirebaseFriendsBackend implements FriendsBackend {
     final existing = _asMap((await me.get()).value) ?? const {};
     final random = Random.secure();
 
-    var tag = existing['tag'];
-    if (!PlayerTag.isValid(tag)) tag = PlayerTag.generate(random);
+    final tag = PlayerTag.parse(existing['tag']) ?? PlayerTag.generate(random);
+    final serverName = DbValues.text(existing['name']);
+    if (keepServerName && serverName != null) _name = serverName;
     await me.update({'name': _name, 'tag': tag});
-    _tag = tag as String;
+    _tag = tag;
     // Older leaderboard entries don't have the tag yet.
     final board = _db.ref('leaderboard/$uid');
     if ((await board.child('wins').get()).exists) {
@@ -67,7 +72,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
 
     final code = existing['friendCode'];
     if (code is String && code.isNotEmpty) {
-      return FriendIdentity(uid: uid, friendCode: code, tag: tag);
+      return FriendIdentity(uid: uid, friendCode: code, tag: tag, name: _name);
     }
     for (var attempt = 0; attempt < 10; attempt++) {
       final code = FriendCodeValidator.generate(random);
@@ -79,7 +84,7 @@ class FirebaseFriendsBackend implements FriendsBackend {
         rethrow;
       }
       await me.child('friendCode').set(code);
-      return FriendIdentity(uid: uid, friendCode: code, tag: tag);
+      return FriendIdentity(uid: uid, friendCode: code, tag: tag, name: _name);
     }
     throw FriendsException('Kon geen vriendcode maken.');
   }
@@ -103,19 +108,25 @@ class FirebaseFriendsBackend implements FriendsBackend {
 
     void emit() {
       if (!loaded || ctl.isClosed) return;
-      final list = [
-        for (final uid in uids)
-          Friend(
-            uid: uid,
-            name:
-                profiles[uid]?['name'] as String? ??
-                stats[uid]?['name'] as String? ??
-                'Speler',
-            tag: profiles[uid]?['tag'] as String?,
-            wins: _asInt(stats[uid]?['wins']),
-            losses: _asInt(stats[uid]?['losses']),
-          ),
-      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final List<Friend> list;
+      try {
+        list = [
+          for (final uid in uids)
+            Friend(
+              uid: uid,
+              name:
+                  DbValues.text(profiles[uid]?['name']) ??
+                  DbValues.text(stats[uid]?['name']) ??
+                  'Speler',
+              tag: PlayerTag.parse(profiles[uid]?['tag']),
+              wins: _asInt(stats[uid]?['wins']),
+              losses: _asInt(stats[uid]?['losses']),
+            ),
+        ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      } catch (e) {
+        debugPrint('friends emit: $e');
+        return;
+      }
       ctl.add(list);
     }
 
@@ -182,8 +193,8 @@ class FirebaseFriendsBackend implements FriendsBackend {
             if (c.key != null)
               FriendRequest(
                 fromUid: c.key!,
-                name: _asMap(c.value)?['name'] as String? ?? 'Speler',
-                tag: _asMap(c.value)?['tag'] as String?,
+                name: DbValues.text(_asMap(c.value)?['name']) ?? 'Speler',
+                tag: PlayerTag.parse(_asMap(c.value)?['tag']),
               ),
         ];
       });
@@ -195,8 +206,8 @@ class FirebaseFriendsBackend implements FriendsBackend {
         if (v == null) return null;
         return LeaderboardEntry(
           uid: _me,
-          name: v['name'] as String? ?? _name,
-          tag: v['tag'] as String? ?? _tag,
+          name: DbValues.text(v['name']) ?? _name,
+          tag: PlayerTag.parse(v['tag']) ?? _tag,
           wins: _asInt(v['wins']),
           losses: _asInt(v['losses']),
         );
@@ -260,9 +271,9 @@ class FirebaseFriendsBackend implements FriendsBackend {
           list.add(
             ChallengeInvite(
               fromUid: c.key!,
-              name: v['name'] as String? ?? 'Speler',
-              tag: v['tag'] as String?,
-              roomCode: v['roomCode'] as String? ?? '',
+              name: DbValues.text(v['name']) ?? 'Speler',
+              tag: PlayerTag.parse(v['tag']),
+              roomCode: DbValues.text(v['roomCode']) ?? '',
               sentAt: DateTime.fromMillisecondsSinceEpoch(_asInt(v['at'])),
             ),
           );
@@ -309,6 +320,34 @@ class FirebaseFriendsBackend implements FriendsBackend {
     final board = _db.ref('leaderboard/$_me');
     if (!(await board.child('wins').get()).exists) return;
     await board.update({'wins': 0, 'losses': 0});
+  }
+
+  @override
+  Future<void> deleteMyData() async {
+    final me = _uid;
+    if (me == null) return;
+    // Separate writes: one that fails (e.g. old rules) must not stop the rest.
+    Future<void> run(String what, Future<void> Function() f) async {
+      try {
+        await f();
+      } catch (e) {
+        debugPrint('deleteMyData $what: $e');
+      }
+    }
+
+    final friends = (await _db.ref('friends/$me').get()).children
+        .map((c) => c.key)
+        .whereType<String>();
+    for (final uid in friends) {
+      await run('friend', () => remove(uid));
+    }
+    final code = (await _db.ref('users/$me/friendCode').get()).value;
+    if (code is String) {
+      await run('code', () => _db.ref('friendCodes/$code').remove());
+    }
+    await run('board', () => _db.ref('leaderboard/$me').remove());
+    await run('tokens', () => _db.ref('fcmTokens/$me').remove());
+    await run('user', () => _db.ref('users/$me').remove());
   }
 
   @override

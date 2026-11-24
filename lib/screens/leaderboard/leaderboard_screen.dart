@@ -14,8 +14,7 @@ import '../../utils/constants.dart';
 import '../../widgets/friends/challenge_banner.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/screen_header.dart';
-import '../../widgets/leaderboard/leaderboard_row.dart';
-import '../../widgets/leaderboard/podium.dart';
+import '../../widgets/leaderboard/animated_board.dart';
 import '../../widgets/leaderboard/segmented_tabs.dart';
 
 /// Ranking by wins. "Global" is the top of everyone on the server,
@@ -92,6 +91,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 onSelected: (i) => setState(() => _tab = i),
               ),
               Expanded(
+                // One board for both tabs: players move to their new place
+                // when switching (see AnimatedBoard).
                 child: _tab == 0
                     ? _friendsBoard(social, isMe)
                     : _globalBoard(isMe),
@@ -111,7 +112,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     if (global == null) return const _Loading();
     if (global.isEmpty) return const _Message('Nog niemand op het scorebord.');
     final entries = [...global]..sort((a, b) => b.wins.compareTo(a.wins));
-    return _Board(entries: entries, isMe: isMe);
+    return AnimatedBoard(entries: entries, isMe: isMe);
   }
 
   Widget _friendsBoard(
@@ -129,35 +130,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         'Voeg vrienden toe via de Vrienden-pagina.',
       );
     }
-    return _Board(entries: social.board, isMe: isMe);
+    return AnimatedBoard(entries: social.board, isMe: isMe);
   }
-}
-
-class _Board extends StatelessWidget {
-  const _Board({required this.entries, required this.isMe});
-
-  final List<LeaderboardEntry> entries;
-  final bool Function(LeaderboardEntry) isMe;
-
-  @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.only(top: 22, bottom: 16),
-    children: [
-      Podium(entries: entries),
-      const SizedBox(height: 14),
-      for (var i = 3; i < entries.length; i++) ...[
-        LeaderboardRow(
-          rank: i + 1,
-          name: entries[i].name,
-          tag: entries[i].tag,
-          wins: entries[i].wins,
-          losses: entries[i].losses,
-          isMe: isMe(entries[i]),
-        ),
-        const SizedBox(height: 8),
-      ],
-    ],
-  );
 }
 
 class _Loading extends StatelessWidget {

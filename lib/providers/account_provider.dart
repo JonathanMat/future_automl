@@ -8,6 +8,7 @@ import '../services/auth/account_service.dart';
 class AccountProvider extends ChangeNotifier {
   AccountProvider(this.service, {this.onUserChanged, this.beforeSignOut}) {
     _info = service.current;
+    _lastUid = _info.uid;
     _sub = service.changes.listen(_onChange);
   }
 
@@ -21,6 +22,11 @@ class AccountProvider extends ChangeNotifier {
   final Future<void> Function()? beforeSignOut;
 
   late AccountInfo _info;
+
+  /// The last signed-in uid. Signing in to an existing Google account first
+  /// deletes the guest, so there is a moment with no user at all: compare
+  /// with the last real uid, not with that empty moment.
+  String? _lastUid;
   late final StreamSubscription<AccountInfo> _sub;
   bool _busy = false;
   bool _disposed = false;
@@ -30,11 +36,16 @@ class AccountProvider extends ChangeNotifier {
   bool get busy => _busy;
 
   void _onChange(AccountInfo next) {
-    final changedUser =
-        _info.uid != null && next.uid != null && next.uid != _info.uid;
     _info = next;
-    if (changedUser) onUserChanged?.call();
+    _checkUser(next.uid);
     _notify();
+  }
+
+  void _checkUser(String? uid) {
+    if (uid == null) return;
+    final changed = _lastUid != null && uid != _lastUid;
+    _lastUid = uid;
+    if (changed) onUserChanged?.call();
   }
 
   /// Returns a message for the user, or null when canceled.
@@ -70,6 +81,7 @@ class AccountProvider extends ChangeNotifier {
       _busy = false;
       // userChanges() can lag behind a link: read the latest state.
       _info = service.current;
+      _checkUser(_info.uid);
       _notify();
     }
   }

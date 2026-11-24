@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../game/firebase/audio_session.dart';
+
 /// Result of asking for the camera (and microphone).
 enum MediaAccess {
   granted,
@@ -34,17 +36,22 @@ class CameraPermissionService {
 
   static const _settingsChannel = MethodChannel('spell_duel/app_settings');
 
-  Future<MediaAccess> ensureAccess() async {
+  /// [withMicrophone] can turn the microphone off for this check (voice
+  /// chat off); it is never asked when [microphone] is false.
+  Future<MediaAccess> ensureAccess({bool withMicrophone = true}) async {
     if (!enabled) return MediaAccess.granted;
+    final mic = microphone && withMicrophone;
     try {
       final stream = await navigator.mediaDevices.getUserMedia({
-        'audio': microphone,
+        'audio': mic,
         'video': {'facingMode': 'user'},
       });
       for (final track in stream.getTracks()) {
         await track.stop();
       }
       await stream.dispose();
+      // Opening the mic put Android in call mode: switch back.
+      if (mic) await AudioSession.release();
       return MediaAccess.granted;
     } catch (e) {
       debugPrint('Camera access: $e');

@@ -12,12 +12,19 @@ import 'account_service.dart';
 /// by uid) carry over. Needs the Google provider enabled in the Firebase
 /// console and the app's SHA-1 added (see docs/BACKEND.md).
 class FirebaseAccountService implements AccountService {
-  FirebaseAccountService({FirebaseAuth? auth, GoogleSignIn? google})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _google = google ?? GoogleSignIn.instance;
+  FirebaseAccountService({
+    FirebaseAuth? auth,
+    GoogleSignIn? google,
+    this.discardGuestData,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _google = google ?? GoogleSignIn.instance;
 
   final FirebaseAuth _auth;
   final GoogleSignIn _google;
+
+  /// Deletes the guest's server data. Called while still signed in as the
+  /// guest, right before switching to an existing Google account.
+  final Future<void> Function()? discardGuestData;
   Future<void>? _googleInit;
 
   /// Web client id from the Firebase console. Only needed when
@@ -83,6 +90,14 @@ class FirebaseAccountService implements AccountService {
         } on FirebaseAuthException catch (e) {
           // This Google account already has its own Spell Duel data.
           if (e.code != 'credential-already-in-use') rethrow;
+          // Clean up the guest we are leaving, so it doesn't linger in the
+          // database and on the scorebord.
+          try {
+            await discardGuestData?.call();
+            await user.delete();
+          } catch (e) {
+            debugPrint('discard guest: $e');
+          }
           await _auth.signInWithCredential(e.credential ?? credential);
           return GoogleSignInOutcome.switched;
         }

@@ -6,6 +6,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../../utils/db_values.dart';
+import '../../../utils/player_tag.dart';
 import '../commit_reveal.dart';
 import '../game_backend.dart';
 import 'ice_config.dart';
@@ -46,6 +48,9 @@ class FirebaseGameBackend implements GameBackend {
   final FirebaseDatabase _db;
   final GameConfig config;
   final IceConfig ice;
+
+  @override
+  bool voiceChat = true;
 
   /// Commits written by a phone up to this long after the cast window still
   /// count, to allow for network delay.
@@ -211,8 +216,8 @@ class FirebaseGameBackend implements GameBackend {
             entries.add(
               LeaderboardEntry(
                 uid: child.key ?? '',
-                name: v['name'] as String? ?? '?',
-                tag: v['tag'] as String?,
+                name: DbValues.text(v['name']) ?? '?',
+                tag: PlayerTag.parse(v['tag']),
                 wins: _asInt(v['wins']),
                 losses: _asInt(v['losses']),
               ),
@@ -301,6 +306,7 @@ class FirebaseGameBackend implements GameBackend {
       signaling: ref.child('signaling'),
       isCaller: isHost,
       ice: ice,
+      audio: voiceChat,
     );
     _subs.add(call.remoteStream.listen(_remoteCtl.add));
     _subs.add(
@@ -673,7 +679,7 @@ class FirebaseGameBackend implements GameBackend {
         .then(
           (tag) => _db.ref('leaderboard/$uid').update({
             'name': me?['name'] ?? 'Speler',
-            if (tag.value is String) 'tag': tag.value,
+            'tag': ?PlayerTag.parse(tag.value),
             'wins': ServerValue.increment(won ? 1 : 0),
             'losses': ServerValue.increment(won ? 0 : 1),
           }),

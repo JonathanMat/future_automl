@@ -274,7 +274,7 @@ void main() {
       await tester.tap(find.text('Voeg toe'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Daag Vriend ABC234 uit'));
+      await tester.tap(find.text('Duel'));
       await _pumpFor(tester, const Duration(milliseconds: 500));
       expect(find.text('Uitdaging'), findsOneWidget);
       expect(
@@ -288,6 +288,47 @@ void main() {
       await tester.binding.handlePopRoute();
       await _pumpFor(tester, const Duration(milliseconds: 600));
       expect(find.text('Uitdaging'), findsNothing);
+    });
+
+    testWidgets('tapping a friend opens their sheet with remove', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.text('Vrienden').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), 'abc234');
+      await tester.tap(find.text('Voeg toe'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.textContaining('Vriend ABC234', findRichText: true),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('DUEL VRIEND ABC234'), findsOneWidget);
+      expect(find.text('Verwijder als vriend'), findsOneWidget);
+
+      await tester.tap(find.text('Verwijder als vriend'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Verwijderen'));
+      await tester.pumpAndSettle();
+      expect(find.text('Vriend ABC234 is geen vriend meer.'), findsOneWidget);
+      expect(find.textContaining('Nog geen vrienden.'), findsOneWidget);
+    });
+
+    testWidgets('the voice chat setting reaches the game backend', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      final backend = MockGameBackend(useCamera: false);
+      await tester.pumpWidget(SpellDuelApp(backend: backend, profile: profile));
+      await tester.pump();
+      expect(backend.voiceChat, isTrue);
+      await profile.setVoiceChat(false);
+      expect(backend.voiceChat, isFalse);
     });
 
     testWidgets('a bad room code shows a validation error', (tester) async {

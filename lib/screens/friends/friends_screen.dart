@@ -52,6 +52,7 @@ class FriendsScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.redSoft),
             child: const Text('Verwijderen'),
           ),
         ],
@@ -80,19 +81,6 @@ class FriendsScreen extends StatelessWidget {
             const ScreenHeader(title: 'Vrienden', onBack: null),
             const SizedBox(height: 16),
             const ChallengeBanner(padding: EdgeInsets.only(bottom: 16)),
-            ChunkyButton(
-              label: 'NIEUW DUEL',
-              icon: Icons.person_add_alt_1_rounded,
-              loading: busy,
-              onPressed: () => RoomFlow.create(context),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Maak een kamer en deel de code met een vriend.',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.caption(),
-            ),
-            const SizedBox(height: 20),
             if (social.error != null && !social.isReady)
               _ErrorCard(
                 message: social.error!,

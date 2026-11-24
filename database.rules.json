@@ -73,7 +73,7 @@
     "friendCodes": {
       "$code": {
         ".read": "auth != null",
-        ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
+        ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && !newData.exists()))",
         ".validate": "newData.isString() && $code.matches(/^[A-Z0-9]{6}$/)"
       }
     },

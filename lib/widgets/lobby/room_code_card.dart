@@ -1,23 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../generic/app_card.dart';
+import '../generic/copy_button.dart';
 
 /// The 4-character room code with a copy button.
 class RoomCodeCard extends StatelessWidget {
   const RoomCodeCard({super.key, required this.code});
 
   final String code;
-
-  Future<void> _copy(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: code));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Kamercode $code gekopieerd.')));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,37 +24,11 @@ class RoomCodeCard extends StatelessWidget {
               Expanded(
                 child: Text('KAMERCODE', style: AppTextStyles.overline()),
               ),
-              Material(
-                color: AppColors.surfaceRaised,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => _copy(context),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.copy_rounded,
-                          size: 14,
-                          color: AppColors.text,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Kopieer',
-                          style: AppTextStyles.body(
-                            12,
-                            weight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              CopyButton(
+                text: code,
+                label: 'Kopieer',
+                tooltip: 'Kopieer kamercode',
+                message: 'Kamercode $code gekopieerd.',
               ),
             ],
           ),

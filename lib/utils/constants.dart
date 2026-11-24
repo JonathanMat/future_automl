@@ -25,4 +25,5 @@ abstract final class AppConstants {
   static const profileKey = 'profile.v1';
   static const friendsKey = 'friends.v1';
   static const shareVideoKey = 'settings.shareVideo';
+  static const voiceChatKey = 'settings.voiceChat';
 }

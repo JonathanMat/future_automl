@@ -80,7 +80,8 @@ abstract final class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.gold,
+          // White by default; destructive actions set red themselves.
+          foregroundColor: AppColors.text,
           textStyle: AppTextStyles.body(15, weight: FontWeight.w900),
         ),
       ),
