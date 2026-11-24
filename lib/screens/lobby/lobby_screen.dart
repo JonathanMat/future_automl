@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -28,6 +30,31 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool _leaving = false;
   bool _navigated = false;
 
+  /// The backend can still be idle for a moment after the room was made:
+  /// Firebase only reports the room once its first snapshot arrives. Idle
+  /// only means "closed" after the room has been seen.
+  bool _sawRoom = false;
+  Timer? _openTimeout;
+
+  /// How long to wait for the room before giving up.
+  static const _openTimeLimit = Duration(seconds: 15);
+
+  @override
+  void initState() {
+    super.initState();
+    _openTimeout = Timer(_openTimeLimit, () {
+      if (!_sawRoom) {
+        _close('De kamer kon niet geopend worden. Controleer je internet.');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _openTimeout?.cancel();
+    super.dispose();
+  }
+
   static const _activePhases = {
     GamePhase.countdown,
     GamePhase.cast,
@@ -51,18 +78,32 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _react(GameState state) {
     if (_leaving || _navigated) return;
+    if (state.phase != GamePhase.idle) {
+      _sawRoom = true;
+      _openTimeout?.cancel();
+    }
     if (_activePhases.contains(state.phase)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _goToDuel());
-    } else if (state.phase == GamePhase.idle) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _leaving) return;
-        _leaving = true;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.error ?? 'De kamer is gesloten.')),
-        );
-        AppRouter.goHome(context);
-      });
+    } else if (state.phase == GamePhase.idle && _sawRoom) {
+      _close(state.error ?? 'De kamer is gesloten.');
+    } else if (state.phase == GamePhase.finished && state.error != null) {
+      // E.g. the opponent left, or the room was removed.
+      _close(state.error!);
     }
+  }
+
+  /// Leaves the room and goes home with [message].
+  void _close(String message) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _leaving) return;
+      _leaving = true;
+      final game = context.read<GameProvider>();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      AppRouter.goHome(context);
+      game.leave();
+    });
   }
 
   @override
@@ -90,7 +131,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   children: [
                     ScreenHeader(title: 'Duel-kamer', onBack: _leave),
                     const SizedBox(height: 20),
-                    if (s.roomCode != null) RoomCodeCard(code: s.roomCode!),
+                    if (s.roomCode != null)
+                      RoomCodeCard(code: s.roomCode!)
+                    else
+                      const _OpeningRoomCard(),
                     const SizedBox(height: 14),
                     IntrinsicHeight(
                       child: Row(
@@ -213,6 +257,37 @@ class _VsBadge extends StatelessWidget {
       child: Text(
         'VS',
         style: AppTextStyles.display(17, color: AppColors.goldInk),
+      ),
+    );
+  }
+}
+
+/// Shown until the backend reports the new room.
+class _OpeningRoomCard extends StatelessWidget {
+  const _OpeningRoomCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 150,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox.square(
+            dimension: 26,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: AppColors.gold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('Kamer openen…', style: AppTextStyles.caption()),
+        ],
       ),
     );
   }

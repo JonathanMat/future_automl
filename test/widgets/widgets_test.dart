@@ -140,6 +140,34 @@ void main() {
       expect(find.text('DUEL STARTEN'), findsOneWidget);
     });
 
+    testWidgets('a room that shows up late is not reported as closed', (
+      tester,
+    ) async {
+      // Like Firebase: createRoom returns before the room is reported.
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        SpellDuelApp(backend: _SlowRoomBackend(), profile: profile),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('DUEL STARTEN'));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(find.text('Kamer openen…'), findsOneWidget);
+      expect(find.text('De kamer is gesloten.'), findsNothing);
+
+      await _pumpFor(tester, const Duration(seconds: 1));
+      expect(find.text('KAMERCODE'), findsOneWidget);
+      expect(find.text('Duel-kamer'), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+      expect(find.text('DUEL STARTEN'), findsOneWidget);
+    });
+
     testWidgets('a refused camera shows the settings dialog', (tester) async {
       final profile = await profileWith({});
       await profile.setName('Jonathan');
@@ -171,4 +199,19 @@ void main() {
       expect(find.text('Een kamercode heeft 4 tekens.'), findsOneWidget);
     });
   });
+}
+
+/// Reports the new room only after a delay, as Firebase does.
+class _SlowRoomBackend extends MockGameBackend {
+  _SlowRoomBackend()
+    : super(useCamera: false, botJoinDelay: const Duration(minutes: 1));
+
+  @override
+  Future<String> createRoom({required String playerName}) async {
+    Future<void>.delayed(
+      const Duration(milliseconds: 600),
+      () => super.createRoom(playerName: playerName),
+    );
+    return 'TEST';
+  }
 }
