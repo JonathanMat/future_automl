@@ -1,34 +1,40 @@
-Spell Duel 🧙‍♂️
+# Spell Duel 🧙
 
-Twee tovenaars nemen het tegen elkaar op, elk met een eigen smartphone. Je spreuken "cast" je met handgebaren.
+Campus Quest – Track D (eigen idee). Twee spelers duelleren met
+handgebaren via een videogesprek. Een zelf getraind Teachable
+Machine-model herkent de spreuk.
 
-Hoe het werkt
-Je hebt elk 3 levens. Er telt een countdown af: 3… 2… 1… CAST! Allebei maken jullie tegelijk een gebaar. Er zijn 4 gebaren:
+| Spreuk | Gebaar | Wint van | Verliest van |
+|---|---|---|---|
+| ❄️ IJs | vuist | 🔥 Vuur | ⚡ Bliksem |
+| 🔥 Vuur | open hand naar voren | ⚡ Bliksem | ❄️ IJs |
+| ⚡ Bliksem | 2 vingers | ❄️ IJs, 🛡️ Schild | 🔥 Vuur |
+| 🛡️ Schild (1× per spel) | beide handen omhoog | 🔥 Vuur, ❄️ IJs | ⚡ Bliksem |
 
-🔥 Vuur (open hand, vingers gespreid) wint van ijs.
-❄️ IJs (vuist) wint van bliksem.
-⚡ Bliksem (twee vingers) wint van vuur.
-🛡️ Schild (vlakke handpalm naar voren, vingers tegen elkaar) blokkeert alles, maar je mag het maximaal 2 keer per spel gebruiken.
+- 3 levens per speler; wie een ronde verliest, verliest 1 leven.
+- Zelfde spreuk of schild tegen schild: niemand verliest een leven.
 
-Wie verliest, raakt een leven kwijt. Wie het laatst overblijft, wint.
+## Starten
 
-Door het schild is het niet gewoon steen-papier-schaar, maar moet je echt nadenken: gebruik je het nu, of spaar je het?
+```
+flutter pub get
+flutter run                                  # mock-backend met een bot
+flutter run --dart-define=BACKEND=firebase   # echte Firebase + WebRTC
+```
 
-Techniek (minimumvereisten)
+Firebase-setup, datamodel en hoe de frontend de backend gebruikt:
+zie [docs/BACKEND.md](docs/BACKEND.md). Het oorspronkelijke concept staat in [docs/CONCEPT.md](docs/CONCEPT.md).
 
-Model: samen trainen jullie één model met 5 klassen (vuur, ijs, bliksem, schild, niets). Per klas nemen jullie minstens 30 foto's (bv. 15 per persoon) met de handen van jullie allebei, bij verschillend licht en met verschillende achtergronden. Allebei laden jullie hetzelfde model op je eigen gsm.
-Drempel: een spreuk telt pas bij meer dan 90% zekerheid en moet 0,5 seconde blijven staan.
-Backend: Firebase of Supabase synchroniseert beide gsm's en bewaart een scorebord met winst/verlies en rangen.
-Privacy: het model draait in de browser, dus de camerabeelden blijven op je gsm. Alleen het woord "vuur" (of een andere spreuk) wordt doorgestuurd.
+## Stack
 
-Uitbreidingen
+- Flutter (Android/iOS)
+- Teachable Machine (Image project) → TensorFlow Lite
+- Firebase Realtime Database + Anonymous Auth
+- WebRTC (`flutter_webrtc`) voor het videogesprek
 
-Moeilijker te foppen: je moet eerst in de "niets"-houding staan voor je mag casten, en je hebt maar 2 seconden.
-Twee modellen vergelijken: train een versie met de handen van één persoon en een versie met jullie allebei, en toon het verschil in nauwkeurigheid.
-Combo's: maak twee gebaren na elkaar voor een superspreuk die je tegenstander 2 levens kost.
+## TODO (in te vullen)
 
-Faaltabel (makkelijk te vullen)
-
-Vuur en schild lijken op elkaar, want het zijn allebei open handen. Aanpassing: vingers spreiden bij vuur en vingers tegen elkaar bij schild, plus extra foto's.
-Het model werkt slechter bij een derde persoon, bv. iemand met kleinere handen of een andere huidskleur. Aanpassing: foto's van meer mensen toevoegen, met hun toestemming.
-Tegenlicht of een donkere kamer geeft verkeerde voorspellingen. Aanpassing: foto's toevoegen bij verschillend licht.
+- Hoe we de dataset maakten
+- Faaltabel (3 situaties)
+- Reflectie (max. 200 woorden)
+- AI-verantwoording

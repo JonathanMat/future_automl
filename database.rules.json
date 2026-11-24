@@ -1,0 +1,53 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (data.child('hostUid').val() === auth.uid || data.child('guestUid').val() === auth.uid || (!data.exists() && newData.child('hostUid').val() === auth.uid))",
+        "hostUid": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val())"
+        },
+        "guestUid": {
+          ".write": "auth != null && !data.exists() && newData.val() === auth.uid && root.child('rooms/' + $code + '/status').val() === 'waiting' && root.child('rooms/' + $code + '/hostUid').val() !== auth.uid",
+          ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val())"
+        },
+        "status": {
+          ".validate": "newData.isString() && newData.val().matches(/^(waiting|playing|finished|closed)$/)"
+        },
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms/' + $code + '/guestUid').val() === auth.uid",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "lives": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10" },
+            "shieldsUsed": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "online": { ".validate": "newData.isBoolean()" }
+          }
+        },
+        "rounds": {
+          "$round": {
+            "commits": {
+              "$uid": {
+                ".validate": "$uid === auth.uid && !data.exists() && newData.child('hash').isString() && newData.child('at').val() === now"
+              }
+            },
+            "reveals": {
+              "$uid": {
+                ".validate": "$uid === auth.uid && !data.exists() && newData.child('spell').isString() && newData.child('salt').isString() && data.parent().parent().child('commits/' + auth.uid).exists()"
+              }
+            }
+          }
+        }
+      }
+    },
+    "leaderboard": {
+      ".read": "auth != null",
+      ".indexOn": ["wins"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+        "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+      }
+    }
+  }
+}
