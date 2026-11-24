@@ -98,19 +98,23 @@ could read the opponent's spell in the database and cast the counter.
    Android/iOS config files.
    If the database URL is in another region than the default, check that
    `databaseURL` is filled in in `firebase_options.dart`.
-6. TURN (needed on 4G/5G): make a free account at Metered (or Cloudflare
-   Realtime) and run with:
-   ```
-   flutter run --dart-define=BACKEND=firebase \
-     --dart-define=TURN_URL=turn:<host>:443?transport=tcp \
-     --dart-define=TURN_USERNAME=<user> --dart-define=TURN_CREDENTIAL=<pass>
-   ```
-   Several TURN URLs: separate them with commas.
+6. TURN (needed on 4G/5G): make a free account at Metered (free plan, no
+   credit card) and create a TURN credential. Then:
+   - copy `config.example.json` to `config.json` (git-ignored) and fill in
+     the URLs, username and credential from the Metered dashboard
+     (several TURN URLs: separate them with commas);
+   - run or build with that file:
+     ```
+     flutter run --dart-define-from-file=config.json
+     flutter build apk --release --dart-define-from-file=config.json
+     ```
+   These are compile-time values: normal OS environment variables are not
+   read by the app.
 
 ## Testing
 
 - `flutter test` – rules (all 16 spell pairs), commit-reveal, mock game.
-- Two phones: both `--dart-define=BACKEND=firebase`, one "Kamer maken", other
+- Two phones: both `--dart-define-from-file=config.json`, one "Kamer maken", other
   "Joinen" with the code. Test on the same wifi first, then one phone on 4G.
 
 ## Known limits

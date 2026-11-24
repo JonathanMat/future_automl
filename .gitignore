@@ -49,3 +49,6 @@ app.*.map.json
 
 # Kotlin compiler sessions
 /android/.kotlin/
+
+# Local secrets (TURN credentials). Copy config.example.json to config.json.
+/config.json
