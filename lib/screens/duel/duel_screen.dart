@@ -19,6 +19,7 @@ import '../../widgets/duel/spell_card_grid.dart';
 import '../../widgets/duel/video_feed.dart';
 import '../../widgets/generic/avatar_tile.dart';
 import '../../widgets/generic/chunky_button.dart';
+import '../../widgets/duel/effects/fx_plan.dart';
 
 /// The live duel: opponent on top, you at the bottom, countdown and
 /// reveal in between.
@@ -146,87 +147,93 @@ class _DuelScreenState extends State<DuelScreen> {
                   const SizedBox(height: 12),
                   Expanded(
                     flex: 206,
-                    child: VideoFeed(
-                      key: _topFeedKey,
-                      stream: shareVideo ? game.remoteStream : null,
-                      blurred: _hiddenPhases.contains(s.phase),
-                      placeholder: shareVideo
-                          ? null
-                          : Center(
-                              child: AvatarTile(name: opponentName, size: 72),
-                            ),
-                      overlays: [
-                        Positioned(
-                          top: 12,
-                          left: 12,
-                          child: LiveBadge(status: s.callStatus),
-                        ),
-                        Positioned(
-                          top: 12,
-                          right: 12,
-                          child: ConnectionBars(status: s.callStatus),
-                        ),
-                        Positioned(
-                          left: 14,
-                          right: 14,
-                          bottom: 12,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  opponentName,
-                                  style: AppTextStyles.display(20),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                    child: FxTintTarget(
+                      side: FxSide.top,
+                      child: VideoFeed(
+                        key: _topFeedKey,
+                        stream: shareVideo ? game.remoteStream : null,
+                        blurred: _hiddenPhases.contains(s.phase),
+                        placeholder: shareVideo
+                            ? null
+                            : Center(
+                                child: AvatarTile(name: opponentName, size: 72),
                               ),
-                              OpponentSpellChip(
-                                hidden: !showingResult,
-                                spell: result?.opponentSpell,
-                              ),
-                            ],
+                        overlays: [
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            child: LiveBadge(status: s.callStatus),
                           ),
-                        ),
-                      ],
+                          Positioned(
+                            top: 12,
+                            right: 12,
+                            child: ConnectionBars(status: s.callStatus),
+                          ),
+                          Positioned(
+                            left: 14,
+                            right: 14,
+                            bottom: 12,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    opponentName,
+                                    style: AppTextStyles.display(20),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                OpponentSpellChip(
+                                  hidden: !showingResult,
+                                  spell: result?.opponentSpell,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   DuelCenterBanner(state: s),
                   Expanded(
                     flex: 240,
-                    child: VideoFeed(
-                      key: _bottomFeedKey,
-                      stream: game.localStream,
-                      mirror: true,
-                      borderColor: mySpellOnFeed?.color ?? AppColors.gold,
-                      glowColor: mySpellOnFeed?.color ?? AppColors.gold,
-                      overlays: [
-                        const AimBrackets(),
-                        const Positioned(
-                          top: 12,
-                          left: 12,
-                          child: FeedLabel('JIJ'),
-                        ),
-                        if (GestureConstants.debug && game.recognitionAvailable)
-                          Positioned(
+                    child: FxTintTarget(
+                      side: FxSide.bottom,
+                      child: VideoFeed(
+                        key: _bottomFeedKey,
+                        stream: game.localStream,
+                        mirror: true,
+                        borderColor: mySpellOnFeed?.color ?? AppColors.gold,
+                        glowColor: mySpellOnFeed?.color ?? AppColors.gold,
+                        overlays: [
+                          const AimBrackets(),
+                          const Positioned(
                             top: 12,
-                            right: 12,
-                            child: GestureDebugOverlay(
-                              frame: game.prediction.frame,
+                            left: 12,
+                            child: FeedLabel('JIJ'),
+                          ),
+                          if (GestureConstants.debug &&
+                              game.recognitionAvailable)
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: GestureDebugOverlay(
+                                frame: game.prediction.frame,
+                              ),
+                            ),
+                          Positioned(
+                            left: 10,
+                            bottom: 10,
+                            child: CastMeter(
+                              prediction: game.prediction,
+                              holdProgress: game.holdProgress,
+                              recognitionAvailable: game.recognitionAvailable,
+                              castSpell: mySpellOnFeed,
+                              canCast: s.canCast,
                             ),
                           ),
-                        Positioned(
-                          left: 10,
-                          right: 10,
-                          bottom: 10,
-                          child: CastMeter(
-                            prediction: game.prediction,
-                            holdProgress: game.holdProgress,
-                            recognitionAvailable: game.recognitionAvailable,
-                            castSpell: mySpellOnFeed,
-                            canCast: s.canCast,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),

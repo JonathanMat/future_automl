@@ -4,6 +4,7 @@ import 'dart:ui';
 import '../../../models/game_rules.dart';
 import 'clash_layer.dart';
 import 'explosion_layer.dart';
+import 'fire_layers.dart';
 import 'freeze_layer.dart';
 import 'fx_core.dart';
 import 'fx_plan.dart';
@@ -106,7 +107,9 @@ PlannedFx? buildSpellFx(FxPlan plan) {
       return null;
 
     case FxKind.fireball:
-      const hit = .62;
+      // A longer charge: the flames spiral into the hand first.
+      const charge = .22;
+      const hit = charge + .45;
       return PlannedFx(
         SpellFx(
           layers: [
@@ -115,13 +118,16 @@ PlannedFx? buildSpellFx(FxPlan plan) {
               spell: Spell.vuur,
               from: (c) => c.center(w),
               to: (c) => c.center(l),
+              charge: charge,
+              flight: hit - charge,
               bend: bendFor(w),
             ),
+            FlameCurtainLayer(start: hit + .05, side: l),
             ExplosionLayer(start: hit, at: (c) => c.center(l), side: l),
           ],
           impacts: [FxImpact(time: hit, side: l, damage: true, shake: 14)],
         ),
-        [FxTint(kind: FxTintKind.heat, side: l, start: hit, end: hit + 1.1)],
+        [FxTint(kind: FxTintKind.heat, side: l, start: hit, end: hit + 1.5)],
       );
 
     case FxKind.freeze:
@@ -273,11 +279,12 @@ PlannedFx? buildSpellFx(FxPlan plan) {
           ),
         );
       } else {
-        layers.add(
+        layers.addAll([
+          FlameCurtainLayer(start: back + .05, side: l, duration: 1.4),
           ExplosionLayer(start: back, at: (c) => c.center(l), side: l),
-        );
+        ]);
         tints.add(
-          FxTint(kind: FxTintKind.heat, side: l, start: back, end: back + 1.1),
+          FxTint(kind: FxTintKind.heat, side: l, start: back, end: back + 1.4),
         );
       }
       return PlannedFx(

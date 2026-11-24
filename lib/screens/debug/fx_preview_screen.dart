@@ -10,6 +10,7 @@ import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/video_feed.dart';
 import '../../widgets/generic/avatar_tile.dart';
 import '../../widgets/generic/screen_header.dart';
+import '../../widgets/duel/effects/fx_plan.dart';
 
 /// Plays every spell effect on demand, with an optional slow motion, to
 /// look at or tune them without playing a duel.
@@ -103,31 +104,37 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: VideoFeed(
-                    key: _topKey,
-                    stream: null,
-                    placeholder: const Center(
-                      child: AvatarTile(name: 'Maarten', size: 72),
-                    ),
-                    overlays: const [
-                      Positioned(
-                        top: 12,
-                        left: 12,
-                        child: FeedLabel('TEGENSTANDER'),
+                  child: FxTintTarget(
+                    side: FxSide.top,
+                    child: VideoFeed(
+                      key: _topKey,
+                      stream: null,
+                      placeholder: const Center(
+                        child: AvatarTile(name: 'Maarten', size: 72),
                       ),
-                    ],
+                      overlays: const [
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          child: FeedLabel('TEGENSTANDER'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 70),
                 Expanded(
-                  child: VideoFeed(
-                    key: _bottomKey,
-                    stream: null,
-                    borderColor: AppColors.gold,
-                    overlays: const [
-                      AimBrackets(),
-                      Positioned(top: 12, left: 12, child: FeedLabel('JIJ')),
-                    ],
+                  child: FxTintTarget(
+                    side: FxSide.bottom,
+                    child: VideoFeed(
+                      key: _bottomKey,
+                      stream: null,
+                      borderColor: AppColors.gold,
+                      overlays: const [
+                        AimBrackets(),
+                        Positioned(top: 12, left: 12, child: FeedLabel('JIJ')),
+                      ],
+                    ),
                   ),
                 ),
                 Row(

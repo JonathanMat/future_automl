@@ -13,11 +13,15 @@ class FxContext {
     required this.size,
     required this.top,
     required this.bottom,
+    this.pixelRatio = 1,
   });
 
   final Size size;
   final Rect top;
   final Rect bottom;
+
+  /// Device pixels per logical pixel, for effects baked into images.
+  final double pixelRatio;
 
   static const feedRadius = 26.0;
 
@@ -266,24 +270,33 @@ void drawLabel(
   double opacity = 1,
 }) {
   if (opacity <= 0) return;
-  final painter = TextPainter(
-    text: TextSpan(
-      text: text,
-      style: style.copyWith(
-        color: (style.color ?? Colors.white).withValues(
-          alpha: clamp01(opacity),
-        ),
-      ),
-    ),
+  // Laying out text is slow: reuse painters across frames, and fade with
+  // a small layer instead of a new style per opacity.
+  final key = (text, style);
+  final painter = _labels[key] ??= (TextPainter(
+    text: TextSpan(text: text, style: style),
     textDirection: TextDirection.ltr,
-  )..layout();
+  )..layout());
+  if (_labels.length > 48) _labels.remove(_labels.keys.first);
+
+  final w = painter.width, h = painter.height;
   canvas
     ..save()
     ..translate(center.dx, center.dy)
     ..scale(scale);
-  painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
+  final fade = opacity < .99;
+  if (fade) {
+    canvas.saveLayer(
+      Rect.fromLTWH(-w / 2 - 20, -h / 2 - 20, w + 40, h + 40),
+      Paint()..color = Color.fromRGBO(0, 0, 0, clamp01(opacity)),
+    );
+  }
+  painter.paint(canvas, Offset(-w / 2, -h / 2));
+  if (fade) canvas.restore();
   canvas.restore();
 }
+
+final _labels = <(String, TextStyle), TextPainter>{};
 
 /// A material icon painted on the canvas.
 void drawIcon(

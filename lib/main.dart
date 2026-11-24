@@ -13,7 +13,7 @@ import 'services/permissions/camera_permission_service.dart';
 import 'services/recognition/mediapipe_spell_recognizer.dart';
 import 'services/recognition/spell_recognizer.dart';
 import 'services/storage/local_storage_service.dart';
-import 'theme/app_colors.dart';
+import 'theme/app_colors.dart'; 
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
 

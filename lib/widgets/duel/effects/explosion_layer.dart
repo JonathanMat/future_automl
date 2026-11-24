@@ -1,8 +1,8 @@
 import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import 'fire_fx.dart';
 import 'fx_core.dart';
 
 /// Fire explosion: white flash, expanding fireball, shockwave rings,
@@ -19,7 +19,7 @@ class ExplosionLayer extends FxLayer {
     final rnd = Random(seed);
     _debris = makeBurst(
       rnd,
-      72,
+      44,
       minSpeed: 180 * scale,
       maxSpeed: 620 * scale,
       maxSize: 6.5 * scale,
@@ -37,7 +37,31 @@ class ExplosionLayer extends FxLayer {
       minLife: .9,
       maxLife: 1.4,
     );
+    double between(double a, double b) => a + rnd.nextDouble() * (b - a);
+    _flames = [
+      for (var i = 0; i < 90; i++)
+        (
+          angle: rnd.nextDouble() * 2 * pi,
+          speed: between(120, 470) * scale,
+          life: between(.45, .95),
+          size: between(40, 80) * scale,
+          born: rnd.nextDouble() * .1,
+          wobble: rnd.nextDouble() * 6,
+        ),
+    ];
   }
+
+  late final List<
+    ({
+      double angle,
+      double speed,
+      double life,
+      double size,
+      double born,
+      double wobble,
+    })
+  >
+  _flames;
 
   final FxPoint at;
 
@@ -54,44 +78,59 @@ class ExplosionLayer extends FxLayer {
 
     if (side case final s?) _scorch(canvas, ctx, s, p, t);
 
-    // Smoke, behind everything else.
+    // Smoke and a ball of flames bursting out, as sprites in a few calls.
+    final smoke = SpriteBatch.puffs();
+    final glow = SpriteBatch.puffs();
+    final flames = SpriteBatch.flames();
     for (final s in _smoke) {
-      final age = t - .08;
+      final age = t - .1;
       final f = age / s.life;
       if (f < 0 || f > 1) continue;
-      drawGlow(
-        canvas,
-        p + s.offsetAt(age, gravity: -70),
-        s.size * scale * (1 + 1.8 * f),
-        const Color(0xFF241B2B),
-        opacity: .38 * (1 - f) * span(age, 0, .12),
+      smoke.add(
+        p + s.offsetAt(age, gravity: -90),
+        s.size * scale * (1.6 + 2.4 * f),
+        0,
+        smokeColor.withValues(alpha: .42 * (1 - f) * span(age, 0, .15)),
       );
     }
 
-    // Fireball.
-    final grow = easeOut(span(t, 0, .32));
-    final fade = 1 - span(t, .2, .8);
-    final r = 130 * scale * grow;
-    if (r > 1 && fade > 0) {
-      canvas.drawCircle(
+    final blast = easeOut(span(t, 0, .25)) * (1 - span(t, .15, .9));
+    glow
+      ..add(
         p,
-        r,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            p,
-            r,
-            [
-              Colors.white.withValues(alpha: fade),
-              firePalette[1].withValues(alpha: fade),
-              firePalette[2].withValues(alpha: fade),
-              firePalette[3].withValues(alpha: .85 * fade),
-              firePalette[4].withValues(alpha: .45 * fade),
-              firePalette[5].withValues(alpha: 0),
-            ],
-            [0, .16, .36, .58, .8, 1],
-          ),
+        330 * scale * easeOut(span(t, 0, .3)),
+        0,
+        const Color(0xFFFF5A14).withValues(alpha: .6 * blast),
+      )
+      ..add(
+        p,
+        170 * scale,
+        0,
+        const Color(0xFFFFC04A).withValues(alpha: .8 * blast),
+      );
+
+    for (final fl in _flames) {
+      final age = t - fl.born;
+      if (age < 0 || age > fl.life) continue;
+      final f = age / fl.life;
+      // Flies out fast, slows down, and rises like hot air.
+      final dist = fl.speed * (1 - exp(-3.2 * age)) / 3.2;
+      final pos =
+          p +
+          polar(fl.angle, dist) +
+          Offset(sin(age * 13 + fl.wobble) * 6, -110 * age * age);
+      final drift = polar(fl.angle, 1) + Offset(0, -1.2 * f);
+      flames.add(
+        pos,
+        flameSize(fl.size, f),
+        tipAngle(drift) + sin(age * 18 + fl.wobble) * .25,
+        fireColor(.04 + f * .96),
       );
     }
+
+    smoke.draw(canvas, additive: false);
+    glow.draw(canvas);
+    flames.draw(canvas);
 
     // Shockwave rings.
     for (final (delay, width, color, reach) in [

@@ -38,6 +38,11 @@ class FreezeLayer extends FxLayer {
   late List<_Shard> _shards;
   late List<({double x, double y, double speed, double size})> _flakes;
 
+  /// Edge frost, branches and crystals, drawn once into an image: drawing
+  /// hundreds of glowing lines every frame made phones stutter.
+  ui.Image? _frostImage;
+  double _bakedRatio = 0;
+
   @override
   void paint(Canvas canvas, FxContext ctx, double t) {
     final rect = ctx.rect(side);
@@ -84,8 +89,7 @@ class FreezeLayer extends FxLayer {
       );
     }
 
-    _paintEdgeFrost(canvas, rect, g);
-    _paintFrostBranches(canvas, span(t, .05, grow + .35));
+    _paintFrost(canvas, rect, hit, ctx.pixelRatio, t);
     _paintShimmer(canvas, rect, t);
     _paintFlakes(canvas, rect, t);
 
@@ -100,6 +104,7 @@ class FreezeLayer extends FxLayer {
     if (pop > 0 && t < crackStart + .1) {
       final scale = .6 + .4 * easeOutBack(pop);
       final at = Offset(rect.center.dx, rect.center.dy + rect.height * .2);
+      drawGlow(canvas, at, 90, icePalette[3], opacity: .45 * pop);
       drawIcon(
         canvas,
         Icons.ac_unit_rounded,
@@ -116,7 +121,6 @@ class FreezeLayer extends FxLayer {
           letterSpacing: 2,
           shadows: const [
             Shadow(color: Color(0xFF1769AA), offset: Offset(0, 3)),
-            Shadow(color: Color(0xFF4FC3F7), blurRadius: 18),
           ],
         ),
         scale: scale,
@@ -129,6 +133,8 @@ class FreezeLayer extends FxLayer {
 
   void _build(Rect rect, Offset hit) {
     _builtFor = rect;
+    _frostImage?.dispose();
+    _frostImage = null;
     final rnd = Random(seed);
 
     // Frost branches growing in from the edges.
@@ -229,6 +235,61 @@ class FreezeLayer extends FxLayer {
     if (d.dy > 0) best = min(best, (r.bottom - c.dy) / d.dy);
     if (d.dy < 0) best = min(best, (r.top - c.dy) / d.dy);
     return c + d * best;
+  }
+
+  void _paintFrost(
+    Canvas canvas,
+    Rect rect,
+    Offset hit,
+    double ratio,
+    double t,
+  ) {
+    final reveal = span(t, .05, grow + .35);
+    if (reveal <= 0) return;
+    if (_frostImage == null || _bakedRatio != ratio) _bake(rect, ratio);
+    final image = _frostImage!;
+    final src = Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    final paint = Paint()..filterQuality = FilterQuality.low;
+    if (reveal >= 1) {
+      canvas.drawImageRect(image, src, rect, paint);
+      return;
+    }
+    // The frost grows with the front spreading from the impact.
+    canvas
+      ..save()
+      ..clipPath(
+        Path()..addOval(
+          Rect.fromCircle(
+            center: hit,
+            radius: rect.longestSide * 1.3 * easeOut(reveal),
+          ),
+        ),
+      )
+      ..drawImageRect(image, src, rect, paint)
+      ..restore();
+  }
+
+  void _bake(Rect rect, double ratio) {
+    _frostImage?.dispose();
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder)
+      ..scale(ratio)
+      ..translate(-rect.left, -rect.top);
+    _paintEdgeFrost(c, rect, 1);
+    // Past 1 so every branch is fully grown.
+    _paintFrostBranches(c, 2);
+    final picture = recorder.endRecording();
+    _frostImage = picture.toImageSync(
+      max(1, (rect.width * ratio).ceil()),
+      max(1, (rect.height * ratio).ceil()),
+    );
+    _bakedRatio = ratio;
+    picture.dispose();
   }
 
   void _paintEdgeFrost(Canvas canvas, Rect r, double g) {
@@ -341,8 +402,8 @@ class FreezeLayer extends FxLayer {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 5
-            ..color = const Color(0xFF4FC3F7).withValues(alpha: .6)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+            ..strokeCap = StrokeCap.round
+            ..color = const Color(0xFF4FC3F7).withValues(alpha: .45),
         )
         ..drawPath(
           path,
