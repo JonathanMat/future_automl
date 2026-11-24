@@ -84,7 +84,7 @@ class ClashStruggleLayer extends FxLayer {
     final flicker = .5 + .5 * sin(t * 61);
 
     // Heat haze behind it all.
-    drawGlow(canvas, c, 110 + 70 * k, _main, opacity: .28 + .2 * k, core: .1);
+    drawGlow(canvas, c, 95 + 55 * k, _main, opacity: .16 + .14 * k, core: .1);
 
     // Pressure rings, faster as the tension rises.
     final every = .18 - .07 * k;
@@ -156,7 +156,7 @@ class ClashStruggleLayer extends FxLayer {
     drawGlow(
       canvas,
       c,
-      30 + 48 * k + 8 * flicker,
+      18 + 26 * k + 6 * flicker,
       _main,
       opacity: .9,
       core: .25,
@@ -164,7 +164,7 @@ class ClashStruggleLayer extends FxLayer {
     drawGlow(
       canvas,
       c,
-      12 + 18 * k + 4 * flicker,
+      7 + 11 * k + 3 * flicker,
       Colors.white,
       opacity: 1,
       core: .5,
@@ -172,7 +172,7 @@ class ClashStruggleLayer extends FxLayer {
     // About to blow.
     final overload = span(k, .75, 1);
     if (overload > 0) {
-      drawGlow(canvas, c, 70 * overload, Colors.white, opacity: .8 * overload);
+      drawGlow(canvas, c, 60 * overload, Colors.white, opacity: .8 * overload);
     }
   }
 

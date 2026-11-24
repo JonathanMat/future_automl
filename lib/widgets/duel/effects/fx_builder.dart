@@ -332,7 +332,7 @@ PlannedFx? buildSpellFx(FxPlan plan) {
 
       // Each spell's centre sits [gap] from the contact point and creeps
       // closer as the pressure rises.
-      const gap = 30.0;
+      const gap = 46.0;
       Offset Function(double) hold(double towardsMiddle) =>
           (t) =>
               push(t) + Offset(0, towardsMiddle * 10 * clamp01(t / struggle));
