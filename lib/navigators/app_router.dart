@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/debug/backend_debug_page.dart';
+import '../screens/debug/fx_preview_screen.dart';
 import '../screens/duel/duel_screen.dart';
 import '../screens/friends/friends_screen.dart';
 import '../screens/home/home_screen.dart';
@@ -23,6 +24,7 @@ abstract final class AppRoutes {
   static const result = '/resultaat';
   static const settings = '/instellingen';
   static const debug = '/debug';
+  static const fxPreview = '/effecten';
 }
 
 /// Named routes for the whole app.
@@ -59,6 +61,11 @@ class AppRouter {
       case AppRoutes.debug when kDebugMode:
         return MaterialPageRoute(
           builder: (_) => BackendDebugPage(backend: backend),
+          settings: settings,
+        );
+      case AppRoutes.fxPreview:
+        return MaterialPageRoute(
+          builder: (_) => const FxPreviewScreen(),
           settings: settings,
         );
       default:

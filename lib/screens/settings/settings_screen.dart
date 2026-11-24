@@ -151,8 +151,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: ChunkyButtonStyle.secondary,
               onPressed: _resetStats,
             ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.fxPreview),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Spreuk-effecten bekijken'),
+            ),
             if (kDebugMode) ...[
-              const SizedBox(height: 12),
               TextButton.icon(
                 onPressed: () =>
                     Navigator.of(context).pushNamed(AppRoutes.debug),

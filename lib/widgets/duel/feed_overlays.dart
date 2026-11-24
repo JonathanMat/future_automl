@@ -167,66 +167,6 @@ class OpponentSpellChip extends StatelessWidget {
   }
 }
 
-/// Red flash and a rising "−1" when a player loses a life.
-/// Plays once each time [trigger] changes to a new non-null value.
-class HitOverlay extends StatelessWidget {
-  const HitOverlay({super.key, required this.trigger});
-
-  final Object? trigger;
-
-  @override
-  Widget build(BuildContext context) {
-    if (trigger == null) return const SizedBox.shrink();
-    return IgnorePointer(
-      child: TweenAnimationBuilder<double>(
-        key: ValueKey(trigger),
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 1600),
-        builder: (context, t, _) {
-          final flash = t < 0.1
-              ? t / 0.1 * 0.8
-              : (0.8 * (1 - (t - 0.1) / 0.6)).clamp(0.0, 0.8);
-          final textOpacity = t < 0.2
-              ? t / 0.2
-              : (t > 0.75 ? (1 - t) / 0.25 : 1.0);
-          final rise = -30.0 * t;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              ColoredBox(color: AppColors.red.withValues(alpha: flash)),
-              Center(
-                child: Transform.translate(
-                  offset: Offset(0, rise),
-                  child: Opacity(
-                    opacity: textOpacity.clamp(0.0, 1.0),
-                    child: Text(
-                      '−1',
-                      style: AppTextStyles.display(64, color: AppColors.redSoft)
-                          .copyWith(
-                            shadows: const [
-                              Shadow(
-                                color: AppColors.redDeep,
-                                offset: Offset(0, 4),
-                              ),
-                              Shadow(
-                                color: Colors.black54,
-                                blurRadius: 24,
-                                offset: Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 /// Orange corner brackets that frame the hand on your own feed.
 class AimBrackets extends StatelessWidget {
   const AimBrackets({super.key, this.color = const Color(0xFFFFB27A)});
