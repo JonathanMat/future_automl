@@ -20,9 +20,11 @@ class ProjectileLayer extends FxLayer {
     this.charge = .12,
     this.flight = .5,
     this.bend = 50,
+    this.hold = 0,
+    this.wobble,
     int seed = 1,
   }) : _rnd = Random(seed),
-       super(duration: charge + flight + .6) {
+       super(duration: charge + flight + hold + .6) {
     _embers = [
       for (var i = 0; i < 46; i++)
         (
@@ -43,6 +45,13 @@ class ProjectileLayer extends FxLayer {
 
   /// Sideways curve in pixels (sign picks the side).
   final double bend;
+
+  /// After arriving, keep the projectile at its target this long (seconds),
+  /// e.g. pushing against another spell in a clash.
+  final double hold;
+
+  /// Offset of the held projectile over time (seconds since arrival).
+  final Offset Function(double t)? wobble;
 
   final Random _rnd;
   late final List<
@@ -74,17 +83,23 @@ class ProjectileLayer extends FxLayer {
     final u = (t - charge) / flight;
     _paintTrail(canvas, t, u, at, dirAt);
     if (u <= 1) {
-      final p = at(u);
-      switch (spell) {
-        case Spell.vuur:
-          _fireBody(canvas, p, dirAt(u), t);
-        case Spell.ijs:
-          _iceBody(canvas, p, t);
-        case Spell.bliksem:
-          _ballLightning(canvas, p, t);
-        case Spell.schild:
-          drawGlow(canvas, p, 50, shieldPalette[3], opacity: .8, core: .2);
-      }
+      _paintBody(canvas, at(u), dirAt(u), t);
+    } else if (t - arrival <= hold) {
+      final held = t - arrival;
+      _paintBody(canvas, b + (wobble?.call(held) ?? Offset.zero), dirAt(1), t);
+    }
+  }
+
+  void _paintBody(Canvas canvas, Offset p, Offset dir, double t) {
+    switch (spell) {
+      case Spell.vuur:
+        _fireBody(canvas, p, dir, t);
+      case Spell.ijs:
+        _iceBody(canvas, p, t);
+      case Spell.bliksem:
+        _ballLightning(canvas, p, t);
+      case Spell.schild:
+        drawGlow(canvas, p, 50, shieldPalette[3], opacity: .8, core: .2);
     }
   }
 

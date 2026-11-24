@@ -98,9 +98,15 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
     final impacts = planned.fx.impacts;
     for (var i = 0; i < impacts.length; i++) {
       if (_t >= impacts[i].time && _firedImpacts.add(i)) {
-        impacts[i].damage
-            ? HapticFeedback.heavyImpact()
-            : HapticFeedback.mediumImpact();
+        final impact = impacts[i];
+        if (impact.damage) {
+          HapticFeedback.heavyImpact();
+        } else if (impact.shake >= 8) {
+          HapticFeedback.mediumImpact();
+        } else {
+          // Small rumbles, e.g. while two spells push against each other.
+          HapticFeedback.lightImpact();
+        }
       }
     }
 

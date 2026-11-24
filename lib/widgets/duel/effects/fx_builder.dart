@@ -1,6 +1,8 @@
+import 'dart:math';
 import 'dart:ui';
 
 import '../../../models/game_rules.dart';
+import 'clash_layer.dart';
 import 'explosion_layer.dart';
 import 'freeze_layer.dart';
 import 'fx_core.dart';
@@ -314,8 +316,27 @@ PlannedFx? buildSpellFx(FxPlan plan) {
 
     case FxKind.clash:
       final spell = plan.spell!;
-      const meet = .5;
+      const meet = .45;
+      const struggle = .7;
+      const burst = meet + struggle;
       Offset middle(FxContext c) => c.middle;
+      // Both spells shove the contact point back and forth along the
+      // line between the cameras, faster and harder as it builds up.
+      Offset push(double t) {
+        final k = clamp01(t / struggle);
+        return Offset(
+          2.5 * sin(t * 37),
+          (5 + 5 * k) * sin(t * (18 + 14 * k)) + 4 * sin(t * 7.3),
+        );
+      }
+
+      // Each spell's centre sits [gap] from the contact point and creeps
+      // closer as the pressure rises.
+      const gap = 30.0;
+      Offset Function(double) hold(double towardsMiddle) =>
+          (t) =>
+              push(t) + Offset(0, towardsMiddle * 10 * clamp01(t / struggle));
+
       return PlannedFx(
         SpellFx(
           layers: [
@@ -324,31 +345,53 @@ PlannedFx? buildSpellFx(FxPlan plan) {
                 start: 0,
                 spell: spell,
                 from: (c) => c.center(side),
-                to: middle,
+                to: (c) =>
+                    c.middle + Offset(0, side == FxSide.top ? -gap : gap),
                 charge: .1,
-                flight: .4,
+                flight: meet - .1,
                 bend: side == FxSide.top ? 40 : -40,
+                hold: struggle,
+                wobble: hold(side == FxSide.top ? 1 : -1),
                 seed: seed,
               ),
+            ClashStruggleLayer(
+              start: meet,
+              duration: struggle,
+              spell: spell,
+              at: middle,
+              push: push,
+              gap: gap,
+            ),
             switch (spell) {
-              Spell.vuur => ExplosionLayer(start: meet, at: middle, scale: .75),
+              Spell.vuur => ExplosionLayer(
+                start: burst,
+                at: middle,
+                scale: .95,
+              ),
               Spell.ijs => BurstLayer(
-                start: meet,
+                start: burst,
                 at: middle,
                 palette: icePalette,
-                count: 46,
+                count: 72,
+                reach: 1.25,
                 shards: true,
               ),
               _ => BurstLayer(
-                start: meet,
+                start: burst,
                 at: middle,
                 palette: lightningPalette,
-                count: 40,
+                count: 64,
+                reach: 1.25,
                 bolts: true,
               ),
             },
           ],
-          impacts: [const FxImpact(time: meet, shake: 10)],
+          impacts: [
+            const FxImpact(time: meet, shake: 7),
+            for (final (dt, shake) in [(.17, 3.0), (.34, 4.0), (.51, 5.0)])
+              FxImpact(time: meet + dt, shake: shake),
+            const FxImpact(time: burst, shake: 16),
+          ],
         ),
       );
 
