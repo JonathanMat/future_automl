@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "123043703474",
+    "firebase_url": "https://spell-duel-52675-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "spell-duel-52675",
+    "storage_bucket": "spell-duel-52675.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123043703474:android:349ed65cf6dc8ea39137ab",
+        "android_client_info": {
+          "package_name": "com.spellduel.spell_duel"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCu3YY6lZtXI-vBb6LIZVWU_RpmcUBiULY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
