@@ -6,11 +6,14 @@ import '../../theme/app_text_styles.dart';
 import '../../utils/extensions.dart';
 import '../generic/avatar_tile.dart';
 
-/// A friend with your head-to-head record.
+/// A recent opponent with your head-to-head record.
 class FriendTile extends StatelessWidget {
-  const FriendTile({super.key, required this.friend});
+  const FriendTile({super.key, required this.friend, this.trailing});
 
   final FriendRecord friend;
+
+  /// E.g. an "add friend" button, shown after the record.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +71,7 @@ class FriendTile extends StatelessWidget {
                 ),
               ],
             ),
+            if (trailing != null) ...[const SizedBox(width: 4), trailing!],
           ],
         ),
       ),

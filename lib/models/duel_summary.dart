@@ -18,12 +18,16 @@ class RoundRecord {
 class DuelSummary {
   const DuelSummary({
     required this.opponentName,
+    this.opponentUid,
     required this.won,
     required this.rounds,
     required this.xpGained,
   });
 
   final String opponentName;
+
+  /// The opponent's account id, if the backend knows it.
+  final String? opponentUid;
   final bool won;
   final List<RoundRecord> rounds;
   final int xpGained;

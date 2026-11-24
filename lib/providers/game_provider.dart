@@ -249,6 +249,7 @@ class GameProvider extends ChangeNotifier {
       final won = s.iWon ?? false;
       final summary = DuelSummary(
         opponentName: s.opponent?.name ?? 'Tegenstander',
+        opponentUid: s.opponent?.uid,
         won: won,
         rounds: List.unmodifiable(_rounds),
         xpGained: ProfileProvider.xpFor(won: won),

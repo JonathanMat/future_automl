@@ -48,6 +48,46 @@
         "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" }
       }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+        "friendCode": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val()) && newData.parent().parent().parent().child('friendCodes/' + newData.val()).val() === $uid"
+        },
+        "$other": { ".validate": false }
+      }
+    },
+    "friendCodes": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists() && newData.val() === auth.uid",
+        ".validate": "newData.isString() && $code.matches(/^[A-Z0-9]{6}$/)"
+      }
+    },
+    "friendRequests": {
+      "$to": {
+        ".read": "auth != null && auth.uid === $to",
+        "$from": {
+          ".read": "auth != null && auth.uid === $from",
+          ".write": "auth != null && $from !== $to && (auth.uid === $from || (auth.uid === $to && !newData.exists()))",
+          ".validate": "newData.hasChildren(['name', 'at'])",
+          "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "at": { ".validate": "newData.val() === now" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$other": {
+          ".write": "auth != null && $uid !== $other && ((!newData.exists() && (auth.uid === $uid || auth.uid === $other)) || (auth.uid === $uid && root.child('friendRequests/' + $uid + '/' + $other).exists()) || (auth.uid === $other && root.child('friendRequests/' + $other + '/' + $uid).exists()))",
+          ".validate": "newData.isNumber()"
+        }
+      }
     }
   }
 }

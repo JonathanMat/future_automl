@@ -15,6 +15,7 @@ import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/name_field.dart';
 import '../../widgets/generic/screen_header.dart';
 import '../../widgets/lobby/video_share_card.dart';
+import '../../widgets/settings/account_card.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -51,7 +52,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Statistieken wissen?'),
         content: const Text(
-          'Je XP, overwinningen en vriendenlijst worden gewist op deze gsm. '
+          'Je XP, overwinningen en recente tegenstanders worden gewist op deze '
+          'gsm. Je vrienden blijven bewaard. '
           'Dit kan je niet ongedaan maken.',
         ),
         actions: [
@@ -110,6 +112,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 14),
+            const AccountCard(),
             const SizedBox(height: 14),
             VideoShareCard(
               value: profile.shareVideo,

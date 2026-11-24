@@ -5,6 +5,7 @@ import 'package:spell_duel/main.dart';
 import 'package:spell_duel/models/game_rules.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
 import 'package:spell_duel/services/game/mock_game_backend.dart';
+import 'package:spell_duel/services/social/mock_friends_backend.dart';
 import 'package:spell_duel/services/storage/local_storage_service.dart';
 
 import '../services/game_provider_test.dart' show FakeCameraPermission;
@@ -88,6 +89,7 @@ void main() {
             botJoinDelay: const Duration(seconds: 1),
           ),
           profile: profile,
+          friends: MockFriendsBackend(),
           cameraPermission: camera,
         ),
       );
@@ -186,6 +188,28 @@ void main() {
       await tester.tap(find.text('Annuleren'));
       await _pumpFor(tester, const Duration(milliseconds: 400));
       expect(find.text('DUEL STARTEN'), findsOneWidget);
+    });
+
+    testWidgets('friends page: add by code, then on the scorebord', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.text('Vrienden').last);
+      await tester.pumpAndSettle();
+      expect(find.text('JOUW VRIENDCODE'), findsOneWidget);
+      expect(find.text('TEST42'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextFormField), 'abc234');
+      await tester.tap(find.text('Voeg toe'));
+      await tester.pumpAndSettle();
+      expect(find.text('Vriend ABC234'), findsOneWidget);
+
+      await tester.tap(find.text('Scorebord').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Vriend ABC234'), findsOneWidget);
     });
 
     testWidgets('a bad room code shows a validation error', (tester) async {

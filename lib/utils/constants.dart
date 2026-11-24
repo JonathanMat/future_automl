@@ -16,6 +16,7 @@ abstract final class AppConstants {
   // Rooms
   static const roomCodeLength = 4;
   static const playerNameMaxLength = 16;
+  static const friendCodeLength = 6;
 
   /// How many entries the campus leaderboard shows.
   static const leaderboardSize = 20;

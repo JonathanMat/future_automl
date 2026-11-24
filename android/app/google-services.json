@@ -13,7 +13,20 @@
           "package_name": "com.spellduel.spell_duel"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "123043703474-3fr91ju07b06c3rqfus5aj5o0rnn7td6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.spellduel.spell_duel",
+            "certificate_hash": "af91c0a030cff11390d84d62d7abc4f4de550ed8"
+          }
+        },
+        {
+          "client_id": "123043703474-1g9b982m6j873i0b4pbmnvo6om8l72uk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCu3YY6lZtXI-vBb6LIZVWU_RpmcUBiULY"
@@ -21,7 +34,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "123043703474-1g9b982m6j873i0b4pbmnvo6om8l72uk.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "123043703474-vue3eb46hl9pn8h4uon838btu6nt7un0.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.spellduel.spellDuel"
+              }
+            }
+          ]
         }
       }
     }

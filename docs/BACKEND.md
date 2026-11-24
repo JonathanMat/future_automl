@@ -81,6 +81,53 @@ await backend.submitSpell(Spell.vuur);         // once >90% for 0.5 s
 Why commit-reveal: the database is readable by both players. Without it you
 could read the opponent's spell in the database and cast the counter.
 
+## Friends
+
+`services/social/` (`FriendsBackend`, Firebase + mock) and
+`providers/friends_provider.dart`. Uses the same anonymous Firebase uid as
+the game.
+
+```
+users/{uid}: {name, friendCode}
+friendCodes/{code}: uid                       // 6 chars, unique
+friendRequests/{toUid}/{fromUid}: {name, at}
+friends/{uid}/{friendUid}: <server ms>         // stored on both sides
+```
+
+- Add by code (or the "+" next to a recent opponent) writes a request.
+  If they already asked you, it accepts right away.
+- Accept = one atomic update: both `friends/` entries + delete the request.
+  The rules only allow a `friends/` entry while that request exists.
+- Scorebord "Vrienden" = you + your friends' `leaderboard/{uid}` (live),
+  "Campus" = top 20 of everyone.
+- "Recent gespeeld" on the Vrienden page is still local (this phone only).
+- Players start as an anonymous **guest**; the uid is per install.
+  Reinstalling (or clearing app data) as a guest gives a new uid, friend
+  code and empty friend list.
+
+## Account (optional Google login)
+
+`services/auth/` + `providers/account_provider.dart`, card in Instellingen.
+
+- **Guest → Google**: `linkWithCredential` on the anonymous user. The uid
+  stays the same, so friends, friend code and leaderboard carry over.
+- **Google account that already has data** (e.g. a new phone):
+  `credential-already-in-use` → sign in to that account instead. The
+  guest's server data stays behind; friends reload for the new uid.
+- **Uitloggen**: signs out of Google and continues as a new guest.
+- XP/level and "Recent gespeeld" are still stored only on the phone.
+
+Setup (once):
+1. Firebase console → Authentication → Sign-in method → **Google → enable**.
+2. Project settings → Android app → **add SHA-1** of your signing key
+   (`cd android && ./gradlew signingReport`; debug and release key).
+3. Run `flutterfire configure` again so `google-services.json` gets the
+   OAuth client (the `oauth_client` list must not be empty).
+   Without it, pass the *Web client ID* from Authentication → Google as
+   `"GOOGLE_SERVER_CLIENT_ID"` in `config.json`.
+4. iOS: add `GoogleService-Info.plist` and the `REVERSED_CLIENT_ID` URL
+   scheme in `ios/Runner/Info.plist` (see the `google_sign_in_ios` README).
+
 ## Setup (once)
 
 1. [console.firebase.google.com](https://console.firebase.google.com) → new

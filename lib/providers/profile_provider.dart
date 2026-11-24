@@ -7,7 +7,9 @@ import '../services/storage/local_storage_service.dart';
 import '../utils/constants.dart';
 import '../validators/player_name_validator.dart';
 
-/// The local player's profile, friends and settings.
+/// The local player's profile, recent opponents and settings.
+///
+/// Real friends (on the server) are in `FriendsProvider`.
 class ProfileProvider extends ChangeNotifier {
   ProfileProvider(this._storage);
 
@@ -20,7 +22,7 @@ class ProfileProvider extends ChangeNotifier {
 
   PlayerProfile get profile => _profile;
 
-  /// Most recently played first.
+  /// Recent opponents, most recently played first. Stored on this phone.
   List<FriendRecord> get friends => _friends;
   bool get shareVideo => _shareVideo;
   bool get isLoaded => _loaded;
@@ -49,7 +51,7 @@ class ProfileProvider extends ChangeNotifier {
   static int xpFor({required bool won}) =>
       won ? AppConstants.xpForWin : AppConstants.xpForLoss;
 
-  /// Adds a finished game to the profile and the friend list.
+  /// Adds a finished game to the profile and the recent opponents.
   Future<void> recordGame(DuelSummary summary, {DateTime? at}) async {
     final now = at ?? DateTime.now();
     final won = summary.won;
@@ -67,24 +69,35 @@ class ProfileProvider extends ChangeNotifier {
       ),
     );
 
+    // Match on the account id when we have one, otherwise on the name.
+    final uid = summary.opponentUid;
     final key = summary.opponentName.trim().toLowerCase();
-    final existing = _friends
-        .where((f) => f.name.trim().toLowerCase() == key)
-        .firstOrNull;
+    bool same(FriendRecord f) => uid != null && f.uid != null
+        ? f.uid == uid
+        : f.name.trim().toLowerCase() == key;
+    final existing = _friends.where(same).firstOrNull;
     final updated =
-        (existing ?? FriendRecord(name: summary.opponentName, lastPlayed: now))
-            .recordGame(won: won, at: now);
-    _friends = [
-      updated,
-      ..._friends.where((f) => f.name.trim().toLowerCase() != key),
-    ];
+        (existing ??
+                FriendRecord(
+                  uid: uid,
+                  name: summary.opponentName,
+                  lastPlayed: now,
+                ))
+            .recordGame(
+              won: won,
+              at: now,
+              uid: uid,
+              name: summary.opponentName,
+            );
+    _friends = [updated, ..._friends.where((f) => !same(f))];
 
     notifyListeners();
     await _storage.saveProfile(_profile);
     await _storage.saveFriends(_friends);
   }
 
-  /// Clears XP, record and friends. Keeps the name.
+  /// Clears XP, record and recent opponents. Keeps the name and the
+  /// friends on the server.
   Future<void> resetStats() async {
     _profile = PlayerProfile(name: _profile.name);
     _friends = const [];

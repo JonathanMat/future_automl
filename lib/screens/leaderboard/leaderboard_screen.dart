@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../services/game/game_backend.dart';
@@ -14,8 +15,8 @@ import '../../widgets/leaderboard/leaderboard_row.dart';
 import '../../widgets/leaderboard/podium.dart';
 import '../../widgets/leaderboard/segmented_tabs.dart';
 
-/// Ranking by wins. "Campus" is everyone on the server, "Vrienden" only
-/// the people you have dueled (and you).
+/// Ranking by wins. "Campus" is the top of everyone on the server,
+/// "Vrienden" is you and your accepted friends (see [FriendsProvider]).
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
 
@@ -30,24 +31,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       .backend
       .leaderboard(limit: AppConstants.leaderboardSize);
 
-  List<LeaderboardEntry> _filter(
-    List<LeaderboardEntry> all,
-    ProfileProvider profile,
-  ) {
-    if (_tab == 1) return all;
-    final names = {
-      profile.profile.name.trim().toLowerCase(),
-      for (final f in profile.friends) f.name.trim().toLowerCase(),
-    };
-    return all
-        .where((e) => names.contains(e.name.trim().toLowerCase()))
-        .toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>();
+    final social = context.watch<FriendsProvider>();
+    final myUid = social.myUid;
     final myName = profile.profile.name.trim().toLowerCase();
+    bool isMe(LeaderboardEntry e) =>
+        myUid != null ? e.uid == myUid : e.name.trim().toLowerCase() == myName;
 
     return Scaffold(
       bottomNavigationBar: const SafeArea(
@@ -73,48 +64,27 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 onSelected: (i) => setState(() => _tab = i),
               ),
               Expanded(
-                child: StreamBuilder<List<LeaderboardEntry>>(
-                  stream: _stream,
-                  builder: (context, snap) {
-                    if (snap.hasError) {
-                      return _Message(
-                        'Scorebord laden mislukt.\n${snap.error}',
-                      );
-                    }
-                    if (!snap.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: AppColors.gold),
-                      );
-                    }
-                    final entries = [..._filter(snap.data!, profile)]
-                      ..sort((a, b) => b.wins.compareTo(a.wins));
-                    if (entries.isEmpty) {
-                      return _Message(
-                        _tab == 0
-                            ? 'Nog geen vrienden op het scorebord.\nSpeel een duel om ze hier te zien.'
-                            : 'Nog niemand op het scorebord.',
-                      );
-                    }
-                    return ListView(
-                      padding: const EdgeInsets.only(top: 22, bottom: 16),
-                      children: [
-                        Podium(entries: entries),
-                        const SizedBox(height: 14),
-                        for (var i = 3; i < entries.length; i++) ...[
-                          LeaderboardRow(
-                            rank: i + 1,
-                            name: entries[i].name,
-                            wins: entries[i].wins,
-                            losses: entries[i].losses,
-                            isMe:
-                                entries[i].name.trim().toLowerCase() == myName,
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                      ],
-                    );
-                  },
-                ),
+                child: _tab == 0
+                    ? _friendsBoard(social, isMe)
+                    : StreamBuilder<List<LeaderboardEntry>>(
+                        stream: _stream,
+                        builder: (context, snap) {
+                          if (snap.hasError) {
+                            return _Message(
+                              'Scorebord laden mislukt.\n${snap.error}',
+                            );
+                          }
+                          if (!snap.hasData) return const _Loading();
+                          final entries = [...snap.data!]
+                            ..sort((a, b) => b.wins.compareTo(a.wins));
+                          if (entries.isEmpty) {
+                            return const _Message(
+                              'Nog niemand op het scorebord.',
+                            );
+                          }
+                          return _Board(entries: entries, isMe: isMe);
+                        },
+                      ),
               ),
             ],
           ),
@@ -122,6 +92,58 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       ),
     );
   }
+
+  Widget _friendsBoard(
+    FriendsProvider social,
+    bool Function(LeaderboardEntry) isMe,
+  ) {
+    if (!social.isReady) {
+      return social.error != null
+          ? _Message('Vrienden laden mislukt.\n${social.error}')
+          : const _Loading();
+    }
+    if (social.friends.isEmpty) {
+      return const _Message(
+        'Nog geen vrienden op het scorebord.\n'
+        'Voeg vrienden toe via de Vrienden-pagina.',
+      );
+    }
+    return _Board(entries: social.board, isMe: isMe);
+  }
+}
+
+class _Board extends StatelessWidget {
+  const _Board({required this.entries, required this.isMe});
+
+  final List<LeaderboardEntry> entries;
+  final bool Function(LeaderboardEntry) isMe;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.only(top: 22, bottom: 16),
+    children: [
+      Podium(entries: entries),
+      const SizedBox(height: 14),
+      for (var i = 3; i < entries.length; i++) ...[
+        LeaderboardRow(
+          rank: i + 1,
+          name: entries[i].name,
+          wins: entries[i].wins,
+          losses: entries[i].losses,
+          isMe: isMe(entries[i]),
+        ),
+        const SizedBox(height: 8),
+      ],
+    ],
+  );
+}
+
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) =>
+      const Center(child: CircularProgressIndicator(color: AppColors.gold));
 }
 
 class _Message extends StatelessWidget {

@@ -57,7 +57,6 @@ class DefaultFirebaseOptions {
     databaseURL: 'https://spell-duel-52675-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'spell-duel-52675.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAY6jWBp2EE392a0ayUf089nch2afH8kJk',
     appId: '1:123043703474:ios:06f1593a1de3d6a19137ab',
@@ -65,6 +64,8 @@ class DefaultFirebaseOptions {
     projectId: 'spell-duel-52675',
     databaseURL: 'https://spell-duel-52675-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'spell-duel-52675.firebasestorage.app',
+    androidClientId: '123043703474-3fr91ju07b06c3rqfus5aj5o0rnn7td6.apps.googleusercontent.com',
+    iosClientId: '123043703474-vue3eb46hl9pn8h4uon838btu6nt7un0.apps.googleusercontent.com',
     iosBundleId: 'com.spellduel.spellDuel',
   );
 }
