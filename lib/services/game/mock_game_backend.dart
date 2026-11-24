@@ -57,14 +57,16 @@ class MockGameBackend implements GameBackend {
   @override
   Future<String> createRoom({required String playerName}) async {
     await _openCamera();
-    _emit(GameState(
-      config: config,
-      phase: GamePhase.waitingForOpponent,
-      roomCode: 'TEST',
-      isHost: true,
-      me: _player(_myUid, playerName),
-      callStatus: CallStatus.connecting,
-    ));
+    _emit(
+      GameState(
+        config: config,
+        phase: GamePhase.waitingForOpponent,
+        roomCode: 'TEST',
+        isHost: true,
+        me: _player(_myUid, playerName),
+        callStatus: CallStatus.connecting,
+      ),
+    );
     _later(botJoinDelay, _botJoined);
     return 'TEST';
   }
@@ -72,42 +74,52 @@ class MockGameBackend implements GameBackend {
   @override
   Future<void> joinRoom(String code, {required String playerName}) async {
     await _openCamera();
-    _emit(GameState(
-      config: config,
-      phase: GamePhase.waitingForOpponent,
-      roomCode: code.toUpperCase(),
-      me: _player(_myUid, playerName),
-      callStatus: CallStatus.connecting,
-    ));
+    _emit(
+      GameState(
+        config: config,
+        phase: GamePhase.waitingForOpponent,
+        roomCode: code.toUpperCase(),
+        me: _player(_myUid, playerName),
+        callStatus: CallStatus.connecting,
+      ),
+    );
     _botJoined();
   }
 
   void _botJoined() {
-    _emit(_state.copyWith(
-      opponent: _player(_botUid, 'Bot'),
-      callStatus: CallStatus.connected,
-    ));
+    _emit(
+      _state.copyWith(
+        opponent: _player(_botUid, 'Bot'),
+        callStatus: CallStatus.connected,
+      ),
+    );
     if (mirrorCameraAsOpponent) _remoteCtl.add(_localStream);
     _startRound();
   }
 
   PlayerState _player(String uid, String name) => PlayerState(
-      uid: uid, name: name, lives: config.startLives, shieldsUsed: 0,
-      online: true);
+    uid: uid,
+    name: name,
+    lives: config.startLives,
+    shieldsUsed: 0,
+    online: true,
+  );
 
   void _startRound() {
-    final castAt =
-        DateTime.now().add(config.roundLead).add(config.countdown);
+    final castAt = DateTime.now().add(config.roundLead).add(config.countdown);
     _botSpell = null;
-    _emit(_state.copyWith(
-      round: _state.round + 1,
-      castAt: castAt,
-      clearMySpell: true,
-      phase: GamePhase.countdown,
-    ));
+    _emit(
+      _state.copyWith(
+        round: _state.round + 1,
+        castAt: castAt,
+        clearMySpell: true,
+        phase: GamePhase.countdown,
+      ),
+    );
 
     // The bot casts somewhere in the first second of the cast window.
-    final botDelay = castAt.difference(DateTime.now()) +
+    final botDelay =
+        castAt.difference(DateTime.now()) +
         Duration(milliseconds: _random.nextInt(1000));
     _later(botDelay, () {
       final bot = _state.opponent!;
@@ -124,7 +136,11 @@ class MockGameBackend implements GameBackend {
   void _tick() {
     final castAt = _state.castAt!;
     final phase = phaseForTime(
-        now: DateTime.now(), castAt: castAt, config: config, hasResult: false);
+      now: DateTime.now(),
+      castAt: castAt,
+      config: config,
+      hasResult: false,
+    );
     if (phase == GamePhase.resolving) {
       _ticker?.cancel();
       _resolve();
@@ -143,31 +159,39 @@ class MockGameBackend implements GameBackend {
       config: config,
     );
     final newMe = PlayerState(
-        uid: me.uid, name: me.name,
-        lives: me.lives - (r.winner == Side.guest ? 1 : 0),
-        shieldsUsed: r.hostShieldsUsed, online: true);
+      uid: me.uid,
+      name: me.name,
+      lives: me.lives - (r.winner == Side.guest ? 1 : 0),
+      shieldsUsed: r.hostShieldsUsed,
+      online: true,
+    );
     final newBot = PlayerState(
-        uid: bot.uid, name: bot.name,
-        lives: bot.lives - (r.winner == Side.host ? 1 : 0),
-        shieldsUsed: r.guestShieldsUsed, online: true);
+      uid: bot.uid,
+      name: bot.name,
+      lives: bot.lives - (r.winner == Side.host ? 1 : 0),
+      shieldsUsed: r.guestShieldsUsed,
+      online: true,
+    );
     final finished = newMe.lives <= 0 || newBot.lives <= 0;
     if (finished) newMe.lives > 0 ? _wins++ : _losses++;
 
-    _emit(_state.copyWith(
-      me: newMe,
-      opponent: newBot,
-      phase: finished ? GamePhase.finished : GamePhase.roundResult,
-      iWon: finished ? newMe.lives > 0 : null,
-      lastResult: RoundResult(
-        round: _state.round,
-        mySpell: r.hostSpell,
-        opponentSpell: r.guestSpell,
-        outcome: r.winner == null
-            ? RoundOutcome.draw
-            : (r.winner == Side.host ? RoundOutcome.win : RoundOutcome.lose),
-        reason: r.reason,
+    _emit(
+      _state.copyWith(
+        me: newMe,
+        opponent: newBot,
+        phase: finished ? GamePhase.finished : GamePhase.roundResult,
+        iWon: finished ? newMe.lives > 0 : null,
+        lastResult: RoundResult(
+          round: _state.round,
+          mySpell: r.hostSpell,
+          opponentSpell: r.guestSpell,
+          outcome: r.winner == null
+              ? RoundOutcome.draw
+              : (r.winner == Side.host ? RoundOutcome.win : RoundOutcome.lose),
+          reason: r.reason,
+        ),
       ),
-    ));
+    );
     if (!finished) _later(config.resultPause, _startRound);
   }
 
@@ -185,15 +209,17 @@ class MockGameBackend implements GameBackend {
   @override
   Future<void> playAgain() async {
     if (_state.phase != GamePhase.finished) return;
-    _emit(GameState(
-      config: config,
-      phase: GamePhase.countdown,
-      roomCode: _state.roomCode,
-      isHost: _state.isHost,
-      me: _player(_myUid, _state.me!.name),
-      opponent: _player(_botUid, 'Bot'),
-      callStatus: _state.callStatus,
-    ));
+    _emit(
+      GameState(
+        config: config,
+        phase: GamePhase.countdown,
+        roomCode: _state.roomCode,
+        isHost: _state.isHost,
+        me: _player(_myUid, _state.me!.name),
+        opponent: _player(_botUid, 'Bot'),
+        callStatus: _state.callStatus,
+      ),
+    );
     _startRound();
   }
 
@@ -208,8 +234,11 @@ class MockGameBackend implements GameBackend {
   Stream<List<LeaderboardEntry>> leaderboard({int limit = 10}) async* {
     yield [
       LeaderboardEntry(
-          uid: _myUid, name: _state.me?.name ?? 'Jij',
-          wins: _wins, losses: _losses),
+        uid: _myUid,
+        name: _state.me?.name ?? 'Jij',
+        wins: _wins,
+        losses: _losses,
+      ),
     ];
   }
 

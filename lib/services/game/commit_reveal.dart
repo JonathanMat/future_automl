@@ -3,7 +3,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
-import 'game_rules.dart';
+import '../../models/game_rules.dart';
 
 /// Commit-reveal so nobody can read the opponent's spell from the database
 /// and counter it.
@@ -18,10 +18,10 @@ class CommitReveal {
   static final Random _random = Random.secure();
 
   /// A random 128-bit salt as hex, so the hash of "vuur" can't be guessed.
-  static String newSalt() =>
-      List.generate(16, (_) => _random.nextInt(256))
-          .map((b) => b.toRadixString(16).padLeft(2, '0'))
-          .join();
+  static String newSalt() => List.generate(
+    16,
+    (_) => _random.nextInt(256),
+  ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
   static String commitHash(Spell spell, String salt) =>
       sha256.convert(utf8.encode('${spell.wire}:$salt')).toString();
@@ -30,6 +30,5 @@ class CommitReveal {
     required String hash,
     required Spell spell,
     required String salt,
-  }) =>
-      commitHash(spell, salt) == hash;
+  }) => commitHash(spell, salt) == hash;
 }

@@ -4,7 +4,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-import '../game_state.dart';
+import '../../../models/game_state.dart';
 import 'ice_config.dart';
 
 /// A 1-on-1 video call. Firebase is only used to exchange the connection
@@ -96,31 +96,38 @@ class WebRtcCall {
       }
     };
 
-    _subs.add(signaling
-        .child('candidates/$_otherRole')
-        .onChildAdded
-        .listen((event) => _onRemoteCandidate(event.snapshot.value)));
+    _subs.add(
+      signaling
+          .child('candidates/$_otherRole')
+          .onChildAdded
+          .listen((event) => _onRemoteCandidate(event.snapshot.value)),
+    );
 
     if (isCaller) {
       await _sendOffer();
-      _subs.add(signaling.child('answer').onValue.listen((event) async {
-        final answer = event.snapshot.value;
-        if (answer is Map && !_remoteDescriptionSet) {
-          await _setRemote(answer);
-        }
-      }));
+      _subs.add(
+        signaling.child('answer').onValue.listen((event) async {
+          final answer = event.snapshot.value;
+          if (answer is Map && !_remoteDescriptionSet) {
+            await _setRemote(answer);
+          }
+        }),
+      );
     } else {
-      _subs.add(signaling.child('offer').onValue.listen((event) async {
-        final offer = event.snapshot.value;
-        if (offer is! Map) return;
-        // A new offer (e.g. after an ICE restart) replaces the old one.
-        await _setRemote(offer);
-        final answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await signaling
-            .child('answer')
-            .set({'type': answer.type, 'sdp': answer.sdp});
-      }));
+      _subs.add(
+        signaling.child('offer').onValue.listen((event) async {
+          final offer = event.snapshot.value;
+          if (offer is! Map) return;
+          // A new offer (e.g. after an ICE restart) replaces the old one.
+          await _setRemote(offer);
+          final answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await signaling.child('answer').set({
+            'type': answer.type,
+            'sdp': answer.sdp,
+          });
+        }),
+      );
     }
   }
 
@@ -143,8 +150,12 @@ class WebRtcCall {
   }
 
   Future<void> _setRemote(Map<Object?, Object?> description) async {
-    await _pc!.setRemoteDescription(RTCSessionDescription(
-        description['sdp'] as String?, description['type'] as String?));
+    await _pc!.setRemoteDescription(
+      RTCSessionDescription(
+        description['sdp'] as String?,
+        description['type'] as String?,
+      ),
+    );
     _remoteDescriptionSet = true;
     for (final c in _pendingCandidates) {
       await _pc!.addCandidate(c);

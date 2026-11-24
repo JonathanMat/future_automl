@@ -1,26 +1,26 @@
 # Spell Duel – backend
 
 Firebase Realtime Database (rooms, rounds, scores) + WebRTC (video call).
-Everything lives in `lib/backend/`.
+Models live in `lib/models/`, the backend in `lib/services/game/`.
 
 | File | What it does |
 |---|---|
-| `game_rules.dart` | Spells, who beats whom, `resolveRound()`. Pure Dart, fully tested. |
-| `game_state.dart` | `GameState` the UI listens to: phase, lives, round result… |
-| `game_backend.dart` | **The interface the frontend uses.** |
-| `mock_game_backend.dart` | Offline version with a bot opponent, for UI work. |
-| `commit_reveal.dart` | Hash trick so nobody can read the opponent's spell early. |
-| `firebase/firebase_game_backend.dart` | The real backend. |
-| `firebase/webrtc_call.dart` | Video call, signaling via Firebase. |
-| `firebase/ice_config.dart` | STUN/TURN servers. |
-| `../../database.rules.json` | Firebase security rules. |
-| `lib/debug/backend_debug_page.dart` | Simple test screen (not the real UI). |
+| `models/game_rules.dart` | Spells, who beats whom, `resolveRound()`. Pure Dart, fully tested. |
+| `models/game_state.dart` | `GameState` the UI listens to: phase, lives, round result… |
+| `services/game/game_backend.dart` | **The interface the frontend uses.** |
+| `services/game/mock_game_backend.dart` | Offline version with a bot opponent, for UI work. |
+| `services/game/commit_reveal.dart` | Hash trick so nobody can read the opponent's spell early. |
+| `services/game/firebase/firebase_game_backend.dart` | The real backend. |
+| `services/game/firebase/webrtc_call.dart` | Video call, signaling via Firebase. |
+| `services/game/firebase/ice_config.dart` | STUN/TURN servers. |
+| `database.rules.json` (repo root) | Firebase security rules. |
+| `screens/debug/backend_debug_page.dart` | Simple test screen (not the real UI). |
 
 ## For Jonathan (frontend)
 
 ```dart
-final GameBackend backend = MockGameBackend();      // no Firebase needed
-// final GameBackend backend = FirebaseGameBackend(); // real thing
+final GameBackend backend = FirebaseGameBackend(); // default in main.dart
+// final GameBackend backend = MockGameBackend();   // no Firebase needed
 
 final code = await backend.createRoom(playerName: 'Maarten'); // show code
 await backend.joinRoom('K7QX', playerName: 'Jonathan');      // other phone
@@ -46,8 +46,8 @@ await backend.submitSpell(Spell.vuur);         // once >90% for 0.5 s
 - `s.canCast`, `s.myShieldAvailable`, `s.lastResult`, `s.iWon`, `s.error`.
 - `submitSpell` throws `GameBackendException` when it's too early/late, you
   already cast, or the shield is used up.
-- Run with the mock: `flutter run`. With Firebase:
-  `flutter run --dart-define=BACKEND=firebase`.
+- Firebase is the default: `flutter run`. With the mock:
+  `flutter run --dart-define=BACKEND=mock`.
 
 ## Rules (in `game_rules.dart`)
 

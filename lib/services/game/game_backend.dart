@@ -2,11 +2,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-import 'game_rules.dart';
-import 'game_state.dart';
+import '../../models/game_rules.dart';
+import '../../models/game_state.dart';
 
-export 'game_rules.dart';
-export 'game_state.dart';
+export '../../models/game_rules.dart';
+export '../../models/game_state.dart';
 
 /// The contract between the frontend (UI + model) and the backend
 /// (Firebase + WebRTC).

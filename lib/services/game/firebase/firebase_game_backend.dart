@@ -39,8 +39,8 @@ class FirebaseGameBackend implements GameBackend {
     FirebaseDatabase? database,
     this.config = const GameConfig(),
     this.ice = const IceConfig(),
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _db = database ?? FirebaseDatabase.instance;
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _db = database ?? FirebaseDatabase.instance;
 
   final FirebaseAuth _auth;
   final FirebaseDatabase _db;
@@ -205,18 +205,20 @@ class FirebaseGameBackend implements GameBackend {
         .limitToLast(limit)
         .onValue
         .map((event) {
-      final entries = <LeaderboardEntry>[];
-      for (final child in event.snapshot.children) {
-        final v = _asMap(child.value) ?? const {};
-        entries.add(LeaderboardEntry(
-          uid: child.key ?? '',
-          name: v['name'] as String? ?? '?',
-          wins: _asInt(v['wins']),
-          losses: _asInt(v['losses']),
-        ));
-      }
-      return entries.reversed.toList();
-    });
+          final entries = <LeaderboardEntry>[];
+          for (final child in event.snapshot.children) {
+            final v = _asMap(child.value) ?? const {};
+            entries.add(
+              LeaderboardEntry(
+                uid: child.key ?? '',
+                name: v['name'] as String? ?? '?',
+                wins: _asInt(v['wins']),
+                losses: _asInt(v['losses']),
+              ),
+            );
+          }
+          return entries.reversed.toList();
+        });
   }
 
   @override
@@ -257,16 +259,18 @@ class FirebaseGameBackend implements GameBackend {
   }
 
   Map<String, Object> _newPlayer(String name) => {
-        'name': name.trim().isEmpty ? 'Speler' : name.trim(),
-        'lives': config.startLives,
-        'shieldsUsed': 0,
-        'online': true,
-      };
+    'name': name.trim().isEmpty ? 'Speler' : name.trim(),
+    'lives': config.startLives,
+    'shieldsUsed': 0,
+    'online': true,
+  };
 
   String _newCode() {
     final r = Random.secure();
     return List.generate(
-        4, (_) => _codeAlphabet[r.nextInt(_codeAlphabet.length)]).join();
+      4,
+      (_) => _codeAlphabet[r.nextInt(_codeAlphabet.length)],
+    ).join();
   }
 
   Future<void> _enterRoom(String code, {required bool isHost}) async {
@@ -278,15 +282,19 @@ class FirebaseGameBackend implements GameBackend {
     // Presence: mark offline when the app loses its connection.
     // onDisconnect fires once, so register it again after every reconnect.
     final online = ref.child('players/$_uid/online');
-    _subs.add(_db.ref('.info/connected').onValue.listen((event) async {
-      if (event.snapshot.value != true || _roomRef == null) return;
-      await online.onDisconnect().set(false);
-      await online.set(true);
-    }));
+    _subs.add(
+      _db.ref('.info/connected').onValue.listen((event) async {
+        if (event.snapshot.value != true || _roomRef == null) return;
+        await online.onDisconnect().set(false);
+        await online.set(true);
+      }),
+    );
 
-    _subs.add(_db.ref('.info/serverTimeOffset').onValue.listen((event) {
-      _serverOffsetMs = _asInt(event.snapshot.value);
-    }));
+    _subs.add(
+      _db.ref('.info/serverTimeOffset').onValue.listen((event) {
+        _serverOffsetMs = _asInt(event.snapshot.value);
+      }),
+    );
 
     final call = _call = WebRtcCall(
       signaling: ref.child('signaling'),
@@ -294,28 +302,39 @@ class FirebaseGameBackend implements GameBackend {
       ice: ice,
     );
     _subs.add(call.remoteStream.listen(_remoteCtl.add));
-    _subs.add(call.status.listen((s) {
-      _callStatus = s;
-      _recompute(force: true);
-    }));
+    _subs.add(
+      call.status.listen((s) {
+        _callStatus = s;
+        _recompute(force: true);
+      }),
+    );
     await call.openCamera();
     // The guest needs the offer, which the host writes right away.
-    unawaited(call.connect().catchError((Object e) {
-      debugPrint('WebRTC connect failed: $e');
-      _callStatus = CallStatus.failed;
-      _recompute(force: true);
-    }));
+    unawaited(
+      call.connect().catchError((Object e) {
+        debugPrint('WebRTC connect failed: $e');
+        _callStatus = CallStatus.failed;
+        _recompute(force: true);
+      }),
+    );
 
-    _subs.add(ref.onValue.listen((event) {
-      _room = _asMap(event.snapshot.value);
-      _recompute(force: true);
-    }, onError: (Object e) {
-      _error = 'Verbinding met de kamer verloren: $e';
-      _recompute(force: true);
-    }));
+    _subs.add(
+      ref.onValue.listen(
+        (event) {
+          _room = _asMap(event.snapshot.value);
+          _recompute(force: true);
+        },
+        onError: (Object e) {
+          _error = 'Verbinding met de kamer verloren: $e';
+          _recompute(force: true);
+        },
+      ),
+    );
 
     _ticker = Timer.periodic(
-        const Duration(milliseconds: 100), (_) => _recompute());
+      const Duration(milliseconds: 100),
+      (_) => _recompute(),
+    );
   }
 
   Future<void> _leaveIfInRoom() async {
@@ -423,7 +442,8 @@ class FirebaseGameBackend implements GameBackend {
     RoundResult? lastResult = _state.lastResult;
     // Show the result of the last finished round, also after the game ended.
     final resultRoundNr = resultMap != null ? roundNr : roundNr - 1;
-    final resultSource = resultMap ??
+    final resultSource =
+        resultMap ??
         _asMap(_asMap(_asMap(room['rounds'])?['$resultRoundNr'])?['result']);
     if (resultSource != null && opponentUid != null) {
       final winnerUid = resultSource['winnerUid'];
@@ -436,8 +456,9 @@ class FirebaseGameBackend implements GameBackend {
             ? RoundOutcome.draw
             : (winnerUid == _uid ? RoundOutcome.win : RoundOutcome.lose),
         reason: RoundReason.values.firstWhere(
-            (r) => r.name == resultSource['reason'],
-            orElse: () => RoundReason.spellBeatsSpell),
+          (r) => r.name == resultSource['reason'],
+          orElse: () => RoundReason.spellBeatsSpell,
+        ),
       );
     }
 
@@ -480,18 +501,18 @@ class FirebaseGameBackend implements GameBackend {
     if (round == null) return;
     final commits = _asMap(round['commits']) ?? const {};
     if (!commits.containsKey(_uid)) return; // own commit not stored yet
-    final windowClosed = _serverNow >
-        _asInt(round['castAt']) + config.castWindow.inMilliseconds;
+    final windowClosed =
+        _serverNow > _asInt(round['castAt']) + config.castWindow.inMilliseconds;
     if (commits.length < 2 && !windowClosed) return;
 
     _revealed.add(roundNr);
-    _roomRef!.child('rounds/$roundNr/reveals/$_uid').set({
-      'spell': secret.spell.wire,
-      'salt': secret.salt,
-    }).catchError((Object e) {
-      _revealed.remove(roundNr);
-      debugPrint('reveal failed: $e');
-    });
+    _roomRef!
+        .child('rounds/$roundNr/reveals/$_uid')
+        .set({'spell': secret.spell.wire, 'salt': secret.salt})
+        .catchError((Object e) {
+          _revealed.remove(roundNr);
+          debugPrint('reveal failed: $e');
+        });
   }
 
   /// Host only: start the game, start rounds, decide results.
@@ -501,11 +522,13 @@ class FirebaseGameBackend implements GameBackend {
     final players = _asMap(room['players']) ?? const {};
 
     if (status == 'waiting') {
-      if (guestUid != null && players.containsKey(guestUid) &&
+      if (guestUid != null &&
+          players.containsKey(guestUid) &&
           !_hostStartingGame) {
         _hostStartingGame = true;
-        _roomRef!.update({'status': 'playing'}).whenComplete(
-            () => _hostStartingGame = false);
+        _roomRef!
+            .update({'status': 'playing'})
+            .whenComplete(() => _hostStartingGame = false);
       }
       return;
     }
@@ -517,7 +540,8 @@ class FirebaseGameBackend implements GameBackend {
 
     // Next round: right away at the start, else after the result pause.
     final resultAt = result == null ? null : _asInt(result['at']);
-    final readyForNext = round == null ||
+    final readyForNext =
+        round == null ||
         (resultAt != null &&
             _serverNow >= resultAt + config.resultPause.inMilliseconds);
     if (readyForNext && _hostStartedRound <= roundNr) {
@@ -529,7 +553,8 @@ class FirebaseGameBackend implements GameBackend {
       return;
     }
     final reveals = _asMap(round['reveals']) ?? const {};
-    final deadline = _asInt(round['castAt']) +
+    final deadline =
+        _asInt(round['castAt']) +
         config.castWindow.inMilliseconds +
         config.revealGrace.inMilliseconds;
     if (reveals.length >= 2 || _serverNow > deadline) {
@@ -539,16 +564,19 @@ class FirebaseGameBackend implements GameBackend {
 
   void _startRound(int roundNr) {
     _hostStartedRound = roundNr;
-    final castAt = _serverNow +
+    final castAt =
+        _serverNow +
         config.roundLead.inMilliseconds +
         config.countdown.inMilliseconds;
-    _roomRef!.update({
-      'currentRound': roundNr,
-      'rounds/$roundNr': {'castAt': castAt},
-    }).catchError((Object e) {
-      _hostStartedRound = roundNr - 1;
-      debugPrint('startRound failed: $e');
-    });
+    _roomRef!
+        .update({
+          'currentRound': roundNr,
+          'rounds/$roundNr': {'castAt': castAt},
+        })
+        .catchError((Object e) {
+          _hostStartedRound = roundNr - 1;
+          debugPrint('startRound failed: $e');
+        });
   }
 
   void _resolve(
@@ -569,7 +597,8 @@ class FirebaseGameBackend implements GameBackend {
       final reveal = _asMap(reveals[uid]);
       if (commit == null || reveal == null) return null;
       final at = _asInt(commit['at']);
-      final inTime = at >= castAt - _earlyTolerance.inMilliseconds &&
+      final inTime =
+          at >= castAt - _earlyTolerance.inMilliseconds &&
           at <=
               castAt +
                   config.castWindow.inMilliseconds +
@@ -604,26 +633,28 @@ class FirebaseGameBackend implements GameBackend {
       null => null,
     };
 
-    _roomRef!.update({
-      'rounds/$roundNr/result': {
-        'winnerUid': ?winnerUid,
-        'reason': r.reason.name,
-        'at': ServerValue.timestamp,
-        'spells': {
-          if (r.hostSpell != null) hostUid: r.hostSpell!.wire,
-          if (r.guestSpell != null) guestUid: r.guestSpell!.wire,
-        },
-      },
-      'players/$hostUid/lives': hostLives,
-      'players/$hostUid/shieldsUsed': r.hostShieldsUsed,
-      'players/$guestUid/lives': guestLives,
-      'players/$guestUid/shieldsUsed': r.guestShieldsUsed,
-      if (finished) 'status': 'finished',
-      if (finished) 'winnerUid': hostLives > 0 ? hostUid : guestUid,
-    }).catchError((Object e) {
-      _hostResolvedRound = roundNr - 1;
-      debugPrint('resolve failed: $e');
-    });
+    _roomRef!
+        .update({
+          'rounds/$roundNr/result': {
+            'winnerUid': ?winnerUid,
+            'reason': r.reason.name,
+            'at': ServerValue.timestamp,
+            'spells': {
+              if (r.hostSpell != null) hostUid: r.hostSpell!.wire,
+              if (r.guestSpell != null) guestUid: r.guestSpell!.wire,
+            },
+          },
+          'players/$hostUid/lives': hostLives,
+          'players/$hostUid/shieldsUsed': r.hostShieldsUsed,
+          'players/$guestUid/lives': guestLives,
+          'players/$guestUid/shieldsUsed': r.guestShieldsUsed,
+          if (finished) 'status': 'finished',
+          if (finished) 'winnerUid': hostLives > 0 ? hostUid : guestUid,
+        })
+        .catchError((Object e) {
+          _hostResolvedRound = roundNr - 1;
+          debugPrint('resolve failed: $e');
+        });
   }
 
   /// Both phones: add this game's win or loss to the own leaderboard entry.
@@ -633,11 +664,14 @@ class FirebaseGameBackend implements GameBackend {
     if (!_leaderboardRecorded.add(game)) return;
     final won = room['winnerUid'] == _uid;
     final me = _asMap(_asMap(room['players'])?[_uid]);
-    _db.ref('leaderboard/$_uid').update({
-      'name': me?['name'] ?? 'Speler',
-      'wins': ServerValue.increment(won ? 1 : 0),
-      'losses': ServerValue.increment(won ? 0 : 1),
-    }).catchError((Object e) => debugPrint('leaderboard failed: $e'));
+    _db
+        .ref('leaderboard/$_uid')
+        .update({
+          'name': me?['name'] ?? 'Speler',
+          'wins': ServerValue.increment(won ? 1 : 0),
+          'losses': ServerValue.increment(won ? 0 : 1),
+        })
+        .catchError((Object e) => debugPrint('leaderboard failed: $e'));
   }
 
   void _emit(GameState state) {

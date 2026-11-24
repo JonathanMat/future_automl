@@ -133,22 +133,21 @@ class GameState {
     bool? iWon,
     CallStatus? callStatus,
     String? error,
-  }) =>
-      GameState(
-        phase: phase ?? this.phase,
-        config: config,
-        roomCode: roomCode ?? this.roomCode,
-        isHost: isHost ?? this.isHost,
-        me: me ?? this.me,
-        opponent: opponent ?? this.opponent,
-        round: round ?? this.round,
-        castAt: castAt ?? this.castAt,
-        mySpell: clearMySpell ? null : (mySpell ?? this.mySpell),
-        lastResult: lastResult ?? this.lastResult,
-        iWon: iWon ?? this.iWon,
-        callStatus: callStatus ?? this.callStatus,
-        error: error ?? this.error,
-      );
+  }) => GameState(
+    phase: phase ?? this.phase,
+    config: config,
+    roomCode: roomCode ?? this.roomCode,
+    isHost: isHost ?? this.isHost,
+    me: me ?? this.me,
+    opponent: opponent ?? this.opponent,
+    round: round ?? this.round,
+    castAt: castAt ?? this.castAt,
+    mySpell: clearMySpell ? null : (mySpell ?? this.mySpell),
+    lastResult: lastResult ?? this.lastResult,
+    iWon: iWon ?? this.iWon,
+    callStatus: callStatus ?? this.callStatus,
+    error: error ?? this.error,
+  );
 }
 
 /// Phase from round timing. Shared by both backends.

@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:spell_duel/backend/game_backend.dart';
-import 'package:spell_duel/backend/mock_game_backend.dart';
+import 'package:spell_duel/services/game/game_backend.dart';
+import 'package:spell_duel/services/game/mock_game_backend.dart';
 
 void main() {
   const fast = GameConfig(
@@ -13,11 +13,11 @@ void main() {
   );
 
   MockGameBackend newBackend() => MockGameBackend(
-        config: fast,
-        useCamera: false,
-        botJoinDelay: const Duration(milliseconds: 20),
-        random: Random(1),
-      );
+    config: fast,
+    useCamera: false,
+    botJoinDelay: const Duration(milliseconds: 20),
+    random: Random(1),
+  );
 
   test('a full game ends with one player at 0 lives', () async {
     final backend = newBackend();
@@ -34,8 +34,7 @@ void main() {
     await sub.cancel();
 
     expect(end.iWon, isNotNull);
-    expect(
-        [end.me!.lives, end.opponent!.lives].where((l) => l <= 0).length, 1);
+    expect([end.me!.lives, end.opponent!.lives].where((l) => l <= 0).length, 1);
     await backend.dispose();
   });
 
@@ -44,8 +43,10 @@ void main() {
     await backend.joinRoom('abcd', playerName: 'Jonathan');
     expect(backend.state.roomCode, 'ABCD');
     expect(backend.state.phase, GamePhase.countdown);
-    expect(() => backend.submitSpell(Spell.ijs),
-        throwsA(isA<GameBackendException>()));
+    expect(
+      () => backend.submitSpell(Spell.ijs),
+      throwsA(isA<GameBackendException>()),
+    );
     await backend.dispose();
   });
 
@@ -55,13 +56,16 @@ void main() {
     await backend.gameState.firstWhere((s) => s.canCast);
     await backend.submitSpell(Spell.schild);
     await backend.gameState.firstWhere(
-        (s) => s.phase == GamePhase.roundResult || s.phase == GamePhase.finished);
+      (s) => s.phase == GamePhase.roundResult || s.phase == GamePhase.finished,
+    );
     expect(backend.state.myShieldAvailable, isFalse);
 
     if (backend.state.phase != GamePhase.finished) {
       await backend.gameState.firstWhere((s) => s.canCast);
-      expect(() => backend.submitSpell(Spell.schild),
-          throwsA(isA<GameBackendException>()));
+      expect(
+        () => backend.submitSpell(Spell.schild),
+        throwsA(isA<GameBackendException>()),
+      );
     }
     await backend.dispose();
   });

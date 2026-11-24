@@ -28,15 +28,15 @@ class IceConfig {
   bool get hasTurn => turnUrl.isNotEmpty;
 
   Map<String, dynamic> toPeerConnectionConfig() => {
-        'iceServers': [
-          {'urls': stunUrls},
-          if (hasTurn)
-            {
-              'urls': turnUrl.split(','),
-              'username': turnUsername,
-              'credential': turnCredential,
-            },
-        ],
-        'sdpSemantics': 'unified-plan',
-      };
+    'iceServers': [
+      {'urls': stunUrls},
+      if (hasTurn)
+        {
+          'urls': turnUrl.split(','),
+          'username': turnUsername,
+          'credential': turnCredential,
+        },
+    ],
+    'sdpSemantics': 'unified-plan',
+  };
 }
