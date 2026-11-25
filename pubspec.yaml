@@ -45,7 +45,8 @@ dependencies:
   mediapipe_vision: ^0.4.1
   google_sign_in: ^7.2.0
   firebase_messaging: ^17.1.0
-  flutter_soloud: ^5.3.2
+  # SoLoud 5.x requires a newer meta than Flutter 3.44 provides.
+  flutter_soloud: ^4.1.7
 dev_dependencies:
   flutter_test:
     sdk: flutter
