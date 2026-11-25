@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spell_duel/models/game_rules.dart';
+import 'dart:typed_data';
+
+import 'package:spell_duel/models/face_shape.dart';
 import 'package:spell_duel/models/game_state.dart';
+import 'package:spell_duel/screens/debug/demo_face.dart';
+import 'package:spell_duel/services/face/face_finder.dart';
 import 'package:spell_duel/theme/app_text_styles.dart';
 import 'package:spell_duel/widgets/duel/killcam.dart';
 
@@ -106,4 +111,88 @@ void main() {
     await tester.pump(const Duration(seconds: 12));
     expect(done, 1);
   });
+
+  test('faces are looked up in both photos, and a miss stays empty', () async {
+    final photo = Uint8List.fromList([1, 2, 3]);
+    final frames = KillcamFrames(round: 2, top: photo, bottom: null);
+    final found = await frames.withFaces(_FakeFinder(DemoFace.shape()));
+    expect(found.round, 2);
+    expect(found.top, same(photo));
+    expect(found.topFace, isNotNull);
+    expect(found.bottomFace, isNull, reason: 'no photo, no face');
+    final none = await frames.withFaces(const NoFaceFinder());
+    expect(none.topFace, isNull);
+  });
+
+  test('tracking photos: no camera, no retries; no finder, no faces', () async {
+    final updates = await KillcamFrames.track(
+      round: 4,
+      finder: _FakeFinder(DemoFace.shape()),
+    ).toList();
+    // The photos, then with faces (none without photos); then it stops
+    // because there is no video to take a better photo from.
+    expect(updates, hasLength(2));
+    expect(updates.last.topFace, isNull);
+    final plain = await KillcamFrames.track(
+      round: 4,
+      finder: const NoFaceFinder(),
+    ).toList();
+    expect(plain, hasLength(1));
+  });
+
+  for (final (mine, theirs) in [
+    (Spell.ijs, Spell.vuur), // you freeze them
+    (Spell.vuur, Spell.ijs), // you get frozen
+    (Spell.bliksem, Spell.vuur), // you get burnt
+    (Spell.ijs, Spell.bliksem), // you get shocked
+    (Spell.schild, null), // shield bash: dizzy
+  ]) {
+    testWidgets('face effects: ${mine.name} vs ${theirs?.name}', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final png = await tester.runAsync(DemoFace.png);
+      final result = _round(mine, theirs);
+      var done = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: KillcamOverlay(
+            result: result,
+            frames: KillcamFrames(
+              round: 3,
+              top: png,
+              bottom: png,
+              // The opponent's photo came in sideways.
+              topFace: DemoFace.shape(turns: 1),
+              bottomFace: DemoFace.shape(),
+            ),
+            myName: 'Jonathan',
+            opponentName: 'Lotte',
+            onDone: () => done++,
+          ),
+        ),
+      );
+      final length = KillcamOverlay.lengthFor(result);
+      const step = Duration(milliseconds: 50);
+      for (var t = Duration.zero; t < length + step * 4; t += step) {
+        await tester.pump(step);
+      }
+      expect(done, 1);
+      expect(tester.takeException(), isNull);
+    });
+  }
+}
+
+class _FakeFinder implements FaceFinder {
+  _FakeFinder(this.face);
+
+  final FaceShape face;
+
+  @override
+  Future<void> warmUp() async {}
+
+  @override
+  Future<FaceShape?> find(Uint8List encodedImage) async => face;
 }

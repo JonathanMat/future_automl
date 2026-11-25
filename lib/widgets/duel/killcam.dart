@@ -6,12 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../models/face_shape.dart';
 import '../../models/game_rules.dart';
 import '../../models/game_state.dart';
 import '../../models/spell_info.dart';
+import '../../services/face/face_finder.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/face_constants.dart';
 import '../generic/avatar_tile.dart';
+import 'effects/face_fx.dart';
+import 'effects/face_layer.dart';
 import 'effects/fx_builder.dart';
 import 'effects/fx_core.dart';
 import 'effects/fx_plan.dart';
@@ -21,7 +26,13 @@ import 'video_feed.dart';
 /// Photos of both cameras at the moment a round was revealed: the
 /// killcam replays the final spell over them.
 class KillcamFrames {
-  const KillcamFrames({required this.round, this.top, this.bottom});
+  const KillcamFrames({
+    required this.round,
+    this.top,
+    this.bottom,
+    this.topFace,
+    this.bottomFace,
+  });
 
   final int round;
 
@@ -30,6 +41,95 @@ class KillcamFrames {
 
   /// Your camera (PNG, not mirrored yet).
   final Uint8List? bottom;
+
+  /// The faces in the photos, once found (see [withFaces]).
+  final FaceShape? topFace;
+  final FaceShape? bottomFace;
+
+  KillcamFrames _with({
+    Uint8List? top,
+    Uint8List? bottom,
+    FaceShape? topFace,
+    FaceShape? bottomFace,
+  }) => KillcamFrames(
+    round: round,
+    top: top ?? this.top,
+    bottom: bottom ?? this.bottom,
+    topFace: topFace ?? this.topFace,
+    bottomFace: bottomFace ?? this.bottomFace,
+  );
+
+  /// The photos for the killcam, as they get better: first the photos at
+  /// the reveal, then with the faces in them, then — for a side where no
+  /// face was found (a hand in front of it while casting, the face half
+  /// out of view) — a newer photo as soon as one shows a face. Keeps
+  /// trying for [within]; the face effects only start at the hit.
+  static Stream<KillcamFrames> track({
+    required int round,
+    MediaStream? opponent,
+    MediaStream? mine,
+    required FaceFinder finder,
+    Duration within = const Duration(milliseconds: 2200),
+    Duration every = const Duration(milliseconds: 150),
+  }) async* {
+    final clock = Stopwatch()..start();
+    var frames = await capture(round: round, opponent: opponent, mine: mine);
+    yield frames;
+    if (finder is NoFaceFinder) return;
+    frames = await frames.withFaces(finder);
+    yield frames;
+
+    var tries = 0;
+    bool needTop() => frames.topFace == null && _hasVideo(opponent);
+    bool needBottom() => frames.bottomFace == null && _hasVideo(mine);
+    while ((needTop() || needBottom()) && clock.elapsed < within) {
+      await Future<void>.delayed(every);
+      tries++;
+      final wantTop = needTop(), wantBottom = needBottom();
+      final again = await capture(
+        round: round,
+        opponent: wantTop ? opponent : null,
+        mine: wantBottom ? mine : null,
+      );
+      var next = frames;
+      final t = again.top, b = again.bottom;
+      if (wantTop && t != null) {
+        final face = await finder.find(t);
+        if (face != null) next = next._with(top: t, topFace: face);
+      }
+      if (wantBottom && b != null) {
+        final face = await finder.find(b);
+        if (face != null) next = next._with(bottom: b, bottomFace: face);
+      }
+      if (!identical(next, frames)) {
+        frames = next;
+        yield frames;
+      }
+    }
+    debugPrint(
+      'killcam: faces top=${frames.topFace != null} '
+      'bottom=${frames.bottomFace != null} after ${tries + 1} photo(s), '
+      '${clock.elapsedMilliseconds} ms',
+    );
+  }
+
+  static bool _hasVideo(MediaStream? stream) =>
+      stream?.getVideoTracks().isNotEmpty ?? false;
+
+  /// These photos with the faces in them, looked up with [finder]. Never
+  /// throws: a face that isn't found stays null.
+  Future<KillcamFrames> withFaces(FaceFinder finder) async {
+    final t = top, b = bottom;
+    final topFace = t == null ? null : await finder.find(t);
+    final bottomFace = b == null ? null : await finder.find(b);
+    return KillcamFrames(
+      round: round,
+      top: top,
+      bottom: bottom,
+      topFace: topFace,
+      bottomFace: bottomFace,
+    );
+  }
 
   /// One photo of each stream, one after the other (the native capture
   /// writes both to the same temporary file). Never throws: a failed
@@ -224,48 +324,104 @@ class _KillcamOverlayState extends State<KillcamOverlay>
   }
 
   /// The two photos where the cameras were, with the spell over them.
+  /// The effect's own timeline (seconds since the slow-motion spell
+  /// started), for the face effects.
+  double get _fxTime {
+    final elapsed = _clock.value * _length.inMicroseconds / 1e6;
+    final sinceStart = elapsed - KillcamOverlay.lead.inMicroseconds / 1e6;
+    return max(0, sinceStart) * KillcamOverlay.speed;
+  }
+
+  late final FaceFxPlan _facePlan = () {
+    final plan = planFor(widget.result);
+    return FaceFxPlan.forRound(plan, buildSpellFx(plan)?.fx);
+  }();
+
+  /// The two cameras, as in the duel but bigger. [top] and [bottom] fill
+  /// them; the face effects use the same layout to land on the photos.
+  static Widget _layout({required Widget top, required Widget bottom}) =>
+      Padding(
+        // Bigger than in the duel: the cameras fill the screen.
+        padding: const EdgeInsets.fromLTRB(10, 62, 10, 50),
+        child: Column(
+          children: [
+            Expanded(flex: 206, child: top),
+            const SizedBox(height: 12),
+            Expanded(flex: 240, child: bottom),
+          ],
+        ),
+      );
+
+  /// The two photos where the cameras were, with the spell over them and
+  /// the face effects on top.
   Widget _stage(Spell? spell) {
     final frames = widget.frames;
+    final faces =
+        frames != null &&
+            (frames.topFace != null || frames.bottomFace != null) &&
+            _facePlan.kind != FaceFxKind.none ||
+        FaceConstants.debug;
+    Widget face(
+      FaceShape? shape,
+      Uint8List? photo,
+      FxSide side, {
+      required bool mirror,
+    }) => shape == null
+        ? const SizedBox.expand()
+        : FaceFxLayer(
+            shape: shape,
+            photo: photo,
+            mirror: mirror,
+            plan: _facePlan,
+            side: side,
+            time: _playing ? _fxTime : 0,
+          );
+
     return SpellEffectsLayer(
       result: _playing ? widget.result : null,
       topKey: _topKey,
       bottomKey: _bottomKey,
       timeScale: KillcamOverlay.speed,
-      child: Padding(
-        // Bigger than in the duel: the cameras fill the screen.
-        padding: const EdgeInsets.fromLTRB(10, 62, 10, 50),
-        child: Column(
-          children: [
-            Expanded(
-              flex: 206,
-              child: FxTintTarget(
-                side: FxSide.top,
-                child: _Photo(
-                  key: _topKey,
-                  bytes: frames?.top,
-                  stream: widget.opponentStream,
-                  name: widget.opponentName,
-                  mirror: false,
-                ),
+      foreground: faces
+          ? _layout(
+              top: face(
+                frames?.topFace,
+                frames?.top,
+                FxSide.top,
+                mirror: false,
               ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              flex: 240,
-              child: FxTintTarget(
-                side: FxSide.bottom,
-                child: _Photo(
-                  key: _bottomKey,
-                  bytes: frames?.bottom,
-                  stream: widget.myStream,
-                  name: widget.myName,
-                  // Like your own preview during the duel.
-                  mirror: true,
-                  border: spell?.color,
-                ),
+              bottom: face(
+                frames?.bottomFace,
+                frames?.bottom,
+                FxSide.bottom,
+                mirror: true,
               ),
-            ),
-          ],
+            )
+          : null,
+      child: _layout(
+        top: FxTintTarget(
+          side: FxSide.top,
+          child: _Photo(
+            key: _topKey,
+            bytes: frames?.top,
+            turns: frames?.topFace?.turns ?? 0,
+            stream: widget.opponentStream,
+            name: widget.opponentName,
+            mirror: false,
+          ),
+        ),
+        bottom: FxTintTarget(
+          side: FxSide.bottom,
+          child: _Photo(
+            key: _bottomKey,
+            bytes: frames?.bottom,
+            turns: frames?.bottomFace?.turns ?? 0,
+            stream: widget.myStream,
+            name: widget.myName,
+            // Like your own preview during the duel.
+            mirror: true,
+            border: spell?.color,
+          ),
         ),
       ),
     );
@@ -418,11 +574,15 @@ class _Photo extends StatelessWidget {
     required this.bytes,
     required this.name,
     required this.mirror,
+    this.turns = 0,
     this.stream,
     this.border,
   });
 
   final Uint8List? bytes;
+
+  /// Clockwise quarter turns that make the photo upright.
+  final int turns;
 
   /// Live video while there is no photo yet.
   final MediaStream? stream;
@@ -446,18 +606,7 @@ class _Photo extends StatelessWidget {
                   borderColor: Colors.transparent,
                   placeholder: avatar,
                 ))
-        : Image.memory(
-            b,
-            fit: BoxFit.cover,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => ColoredBox(
-              color: AppColors.feedDeep,
-              child: Center(child: AvatarTile(name: name, size: 86)),
-            ),
-          );
-    if (mirror && b != null) {
-      picture = Transform.flip(flipX: true, child: picture);
-    }
+        : photoPicture(b, turns: turns, mirror: mirror, fallback: avatar);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(FxContext.feedRadius),
@@ -473,6 +622,10 @@ class _Photo extends StatelessWidget {
           // Live video, then the frozen photo fades in: time stops.
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
+            // Fill the camera (the default centres a loose child, which
+            // would show the photo "contained" instead of covering).
+            layoutBuilder: (current, previous) =>
+                Stack(fit: StackFit.expand, children: [...previous, ?current]),
             child: KeyedSubtree(
               key: ValueKey(b == null ? 'live' : 'photo'),
               child: picture,

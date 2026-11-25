@@ -17,6 +17,8 @@ import 'services/audio/sfx_service.dart';
 import 'services/auth/account_service.dart';
 import 'services/auth/firebase_account_service.dart';
 import 'services/auth/mock_account_service.dart';
+import 'services/face/face_finder.dart';
+import 'services/face/mediapipe_face_finder.dart';
 import 'services/game/firebase/firebase_game_backend.dart';
 import 'services/game/game_backend.dart';
 import 'services/game/mock_game_backend.dart';
@@ -81,6 +83,8 @@ Future<void> main() async {
   SfxService.instance.init();
 
   final isFirebase = _backendKind == 'firebase';
+  // Faces in the killcam photos: only with a real camera.
+  if (isFirebase || _cameraOn) FaceFinder.current = MediaPipeFaceFinder();
   runApp(
     SpellDuelApp(
       backend: backend,

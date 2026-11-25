@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/face_shape.dart';
 import '../../navigators/app_router.dart';
 import '../../models/spell_info.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../services/audio/sfx_service.dart';
+import '../../services/face/face_finder.dart';
 import '../../services/game/game_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
@@ -28,6 +30,10 @@ import '../../widgets/duel/killcam.dart';
 import '../../widgets/duel/spell_card_grid.dart';
 import '../../widgets/duel/video_feed.dart';
 import '../../widgets/generic/avatar_tile.dart';
+import '../../widgets/duel/effects/face_fx.dart';
+import '../../widgets/duel/effects/face_layer.dart';
+import '../../widgets/duel/effects/fx_builder.dart';
+import '../../widgets/duel/effects/fx_core.dart';
 import '../../widgets/duel/effects/fx_plan.dart';
 
 /// The live duel: opponent on top, you at the bottom, countdown and
@@ -60,6 +66,9 @@ class _DuelScreenState extends State<DuelScreen> {
     _emoteSub = context.read<GameProvider>().opponentEmotes.listen(
       _onOpponentEmote,
     );
+    // Load the face model now (behind the VS intro), so the faces in the
+    // killcam photos are found quickly.
+    unawaited(FaceFinder.current.warmUp());
   }
 
   /// Opens the result screen once the final effect has played.
@@ -87,20 +96,140 @@ class _DuelScreenState extends State<DuelScreen> {
     _capturedRound = last.round;
     if (!KillcamOverlay.hasReplay(last)) return;
     final shareVideo = context.read<ProfileProvider>().shareVideo;
-    unawaited(
-      KillcamFrames.capture(
-        round: last.round,
-        opponent: shareVideo ? game.remoteStream : null,
-        mine: game.localStream,
-      ).then((frames) {
-        // The killcam is already open: it swaps the live video for these
-        // frozen photos when they come in.
-        if (mounted && frames.round == _capturedRound) {
-          setState(() => _frames = frames);
-        }
-      }),
+    // Photos (and the faces in them) arrive while the killcam is already
+    // open: it swaps the live video for them as they come in.
+    _framesSub?.cancel();
+    _framesSub =
+        KillcamFrames.track(
+          round: last.round,
+          opponent: shareVideo ? game.remoteStream : null,
+          mine: game.localStream,
+          finder: FaceFinder.current,
+        ).listen((frames) {
+          if (mounted && frames.round == _capturedRound) {
+            setState(() => _frames = frames);
+          }
+        });
+  }
+
+  StreamSubscription<KillcamFrames>? _framesSub;
+
+  // ---------------------------------------------------------------------------
+  // Hit-freeze: the face effects in every round.
+  //
+  // The video keeps moving, so an effect can't stick to a live face. At the
+  // hit, the camera of the player who got hit freezes for a moment on a
+  // photo taken at the reveal (or just after, once their face is in view),
+  // the effect lands exactly on that face, then the video carries on.
+
+  _RoundFace? _roundFace;
+  int? _faceRound;
+  StreamSubscription<KillcamFrames>? _roundFaceSub;
+
+  void _trackRoundFace(GameProvider game) {
+    final result = game.state.lastResult;
+    if (result == null || result.round == _faceRound) return;
+    _faceRound = result.round;
+    _roundFaceSub?.cancel();
+    _roundFace = null;
+    final plan = planFor(result);
+    final facePlan = FaceFxPlan.forRound(plan, buildSpellFx(plan)?.fx);
+    final loser = facePlan.loser;
+    if (facePlan.kind == FaceFxKind.none || loser == null) return;
+    final shareVideo = context.read<ProfileProvider>().shareVideo;
+    final stream = loser == FxSide.top
+        ? (shareVideo ? game.remoteStream : null)
+        : game.localStream;
+    if (stream == null) return;
+    final round = result.round;
+    _roundFaceSub =
+        KillcamFrames.track(
+          round: round,
+          opponent: loser == FxSide.top ? stream : null,
+          mine: loser == FxSide.bottom ? stream : null,
+          finder: FaceFinder.current,
+          // A face found after the hit is too late for this round.
+          within: Duration(
+            milliseconds: (facePlan.hitTime * 1000).round() - 150,
+          ),
+        ).listen((frames) {
+          final top = loser == FxSide.top;
+          final face = top ? frames.topFace : frames.bottomFace;
+          final photo = top ? frames.top : frames.bottom;
+          if (!mounted || face == null || photo == null) return;
+          if (_faceRound != round) return;
+          setState(
+            () => _roundFace = _RoundFace(
+              round: round,
+              side: loser,
+              photo: photo,
+              face: face,
+              plan: facePlan,
+            ),
+          );
+        });
+  }
+
+  /// How frozen the hit camera is at effect time [t]: on just before the
+  /// hit, off again towards the end of the effect.
+  static double _freeze(_RoundFace f, double t, double end) =>
+      span(t, f.plan.hitTime - .08, f.plan.hitTime) *
+      (1 - span(t, end - .45, end - .05));
+
+  Widget? _freezeFrame(FxContext ctx, double t, int round, double end) {
+    final f = _roundFace;
+    if (f == null || f.round != round) return null;
+    final k = _freeze(f, t, end);
+    if (k <= 0) return null;
+    // Inside the camera's 2 px border, like the video.
+    return Positioned.fromRect(
+      rect: ctx.rect(f.side).deflate(2),
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: k,
+          child: FxTintTarget(
+            side: f.side,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(FxContext.feedRadius - 2),
+              child: photoPicture(
+                f.photo,
+                turns: f.face.turns,
+                mirror: f.side == FxSide.bottom,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
+
+  Widget? _faceEffects(FxContext ctx, double t, int round, double end) {
+    final f = _roundFace;
+    if (f == null || f.round != round) return null;
+    final k = _freeze(f, t, end);
+    if (k <= 0) return null;
+    return Positioned.fromRect(
+      rect: ctx.rect(f.side),
+      child: IgnorePointer(
+        child: FaceFxLayer(
+          shape: f.face,
+          photo: f.photo,
+          mirror: f.side == FxSide.bottom,
+          plan: f.plan,
+          side: f.side,
+          time: t,
+          strength: k,
+        ),
+      ),
+    );
+  }
+
+  /// When this round's effect ends (seconds on its timeline).
+  final Map<int, double> _effectEnds = {};
+  double _effectEnd(RoundResult r) => _effectEnds.putIfAbsent(
+    r.round,
+    () => buildSpellFx(planFor(r))?.fx.duration ?? 0,
+  );
 
   void _openResult() {
     _resultTimer?.cancel();
@@ -111,6 +240,8 @@ class _DuelScreenState extends State<DuelScreen> {
 
   @override
   void dispose() {
+    _framesSub?.cancel();
+    _roundFaceSub?.cancel();
     _resultTimer?.cancel();
     _emoteSub?.cancel();
     super.dispose();
@@ -209,6 +340,7 @@ class _DuelScreenState extends State<DuelScreen> {
     }
     // A normal game end: show the final effect, then the result screen by
     // itself. Not when the opponent left: there is no real result then.
+    if (s.phase == GamePhase.roundResult) _trackRoundFace(game);
     if (_finalInSlowMotion(s)) {
       // Straight into the killcam; it opens the result screen itself.
       _captureFinal(game);
@@ -278,6 +410,22 @@ class _DuelScreenState extends State<DuelScreen> {
                 result: showingResult && !_finalInSlowMotion(s) ? result : null,
                 topKey: _topFeedKey,
                 bottomKey: _bottomFeedKey,
+                underlay: result == null
+                    ? null
+                    : (ctx, t) => _freezeFrame(
+                        ctx,
+                        t,
+                        result.round,
+                        _effectEnd(result),
+                      ),
+                overlay: result == null
+                    ? null
+                    : (ctx, t) => _faceEffects(
+                        ctx,
+                        t,
+                        result.round,
+                        _effectEnd(result),
+                      ),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(
@@ -507,4 +655,21 @@ class _BottomArea extends StatelessWidget {
         );
     }
   }
+}
+
+/// The face of the player hit this round, for the hit-freeze.
+class _RoundFace {
+  const _RoundFace({
+    required this.round,
+    required this.side,
+    required this.photo,
+    required this.face,
+    required this.plan,
+  });
+
+  final int round;
+  final FxSide side;
+  final Uint8List photo;
+  final FaceShape face;
+  final FaceFxPlan plan;
 }
