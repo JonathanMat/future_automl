@@ -47,10 +47,9 @@ class VoiceChatCard extends StatelessWidget {
     value: value,
     onChanged: onChanged,
     note: value
-        ? 'Aan: je microfoon staat alleen aan tijdens een duel. Je gsm '
-              'gebruikt dan het belvolume.'
-        : 'Uit: geen microfoon en geen geluid van je tegenstander. Je '
-              'volume werkt gewoon en kan helemaal uit.',
+        ? 'Aan: je microfoon staat alleen aan tijdens een duel. Je '
+              'tegenstander hoor je via de luidspreker, op je mediavolume.'
+        : 'Uit: geen microfoon en geen geluid van je tegenstander.',
   );
 }
 

@@ -72,10 +72,17 @@ abstract class GameBackend {
   /// [GameState.opponentWantsRematch].
   Future<void> playAgain();
 
+  /// The opponent stayed away (offline or left) for the whole grace
+  /// period: ends the game with you as the winner. Does nothing when the
+  /// game isn't running or they are back.
+  Future<void> claimForfeit();
+
   /// Top players by wins.
   Stream<List<LeaderboardEntry>> leaderboard({int limit = 10});
 
-  /// Leaves the room, hangs up and closes the camera.
+  /// Leaves the room, hangs up and closes the camera. During a game the
+  /// room stays open: the opponent gets a while to wait for you (you
+  /// count as away, see [PlayerState.left]) and then wins.
   Future<void> leaveRoom();
 
   /// Releases everything. The backend can't be used afterwards.

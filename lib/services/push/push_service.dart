@@ -22,6 +22,10 @@ abstract class PushService {
 
   /// Asks the push worker to notify [toUid] about the invite just written.
   Future<void> notifyChallenge(String toUid);
+
+  /// Emits when the player opened the app by tapping a challenge
+  /// notification (also when that started the app).
+  Stream<void> get openedChallenge;
 }
 
 class NoPushService implements PushService {
@@ -35,6 +39,9 @@ class NoPushService implements PushService {
 
   @override
   Future<void> notifyChallenge(String toUid) async {}
+
+  @override
+  Stream<void> get openedChallenge => const Stream.empty();
 }
 
 class FirebasePushService implements PushService {
@@ -56,6 +63,19 @@ class FirebasePushService implements PushService {
   final String workerUrl;
   StreamSubscription<String>? _refresh;
   String? _token;
+
+  @override
+  Stream<void> get openedChallenge async* {
+    bool isChallenge(RemoteMessage m) => m.data['type'] == 'challenge';
+    try {
+      // The app was closed and this tap started it.
+      final initial = await _messaging.getInitialMessage();
+      if (initial != null && isChallenge(initial)) yield null;
+    } catch (e) {
+      debugPrint('push initial message: $e');
+    }
+    yield* FirebaseMessaging.onMessageOpenedApp.where(isChallenge);
+  }
 
   @override
   Future<void> register(String uid) async {

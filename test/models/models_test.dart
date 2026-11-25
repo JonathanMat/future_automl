@@ -54,8 +54,8 @@ void main() {
       expect(back.xp, 120);
       expect(back.lastDuel!.opponentName, 'Maarten');
       expect(back.lastDuel!.roundsWon, 3);
-      // Older profiles have no history yet: it starts with the last duel.
-      expect(back.history.single.opponentName, 'Maarten');
+      // Duels without an opponent id (older data) are not in the history.
+      expect(back.history, isEmpty);
     });
 
     test('duel history: round trip, newest first, database map form', () {
@@ -70,6 +70,16 @@ void main() {
       final p = PlayerProfile(history: [duel(2), duel(1)]);
       final back = PlayerProfile.fromJson(p.toJson());
       expect(back.history.map((d) => d.opponentUid), ['u2', 'u1']);
+
+      // An old entry without an id is dropped.
+      final old = p.toJson()
+        ..['history'] = [
+          duel(3).toJson(),
+          {'opponentName': 'Oud', 'won': true, 'playedAt': 9000},
+        ];
+      expect(PlayerProfile.fromJson(old).history.map((d) => d.opponentName), [
+        'P3',
+      ]);
 
       // The database can return the list as {"0": …, "1": …}.
       final json = p.toJson()

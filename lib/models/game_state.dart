@@ -34,6 +34,7 @@ class PlayerState {
     required this.lives,
     required this.shieldsUsed,
     required this.online,
+    this.left = false,
   });
 
   final String uid;
@@ -41,6 +42,9 @@ class PlayerState {
   final int lives;
   final int shieldsUsed;
   final bool online;
+
+  /// Left the duel on purpose (not just a lost connection).
+  final bool left;
 
   bool shieldAvailable(GameConfig config) => shieldsUsed < config.shieldUses;
 }

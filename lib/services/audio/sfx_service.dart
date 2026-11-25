@@ -122,6 +122,8 @@ class SfxService {
   /// playing into an output that no longer exists (silent, no error).
   Future<void> restart() {
     final previous = _init;
+    // Not started by the app (tests): nothing to restart.
+    if (previous == null) return Future.value();
     return _init = () async {
       try {
         await previous;
@@ -142,7 +144,11 @@ class SfxService {
       if (!soloud.isInitialized) {
         // A new engine: sounds loaded into an old one are gone.
         _sources.clear();
-        await soloud.init();
+        // Not the low-latency profile: on phones that support it Android
+        // then uses AAudio's MMAP path, which goes silent (no error) when
+        // WebRTC switches the phone into call mode, and only works on some
+        // devices. The normal mixer is a few ms slower, fine for effects.
+        await soloud.init(lowLatency: false);
       }
       for (final sound in SfxSound.values) {
         _sources[sound] ??= await soloud.loadAsset(sound.asset);

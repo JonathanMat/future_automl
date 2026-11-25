@@ -76,7 +76,9 @@ class PlayerProfile {
   final int streak;
   final LastDuel? lastDuel;
 
-  /// The latest duels, newest first (at most [maxHistory]).
+  /// The latest duels, newest first (at most [maxHistory]). Only duels
+  /// with the opponent's account id: older ones can't link to a profile,
+  /// so they are left out.
   final List<LastDuel> history;
 
   /// Lifetime counters for the badges.
@@ -149,8 +151,7 @@ class PlayerProfile {
       losses: json['losses'] as int? ?? 0,
       streak: json['streak'] as int? ?? 0,
       lastDuel: last,
-      // Profiles from before the history: start it with the last duel.
-      history: history.isEmpty && last != null ? [last] : history,
+      history: history,
       stats: PlayerStats.fromJson(json['stats']),
       badges: _badgesFromJson(json['badges']),
     );
@@ -170,8 +171,10 @@ class PlayerProfile {
       ],
       _ => const [],
     };
-    final list = [for (final i in items) ?LastDuel.fromJson(i)]
-      ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+    final list = [
+      for (final i in items)
+        if (LastDuel.fromJson(i) case final d? when d.opponentUid != null) d,
+    ]..sort((a, b) => b.playedAt.compareTo(a.playedAt));
     return List.unmodifiable(list.take(maxHistory));
   }
 

@@ -15,6 +15,7 @@ import 'package:spell_duel/models/spell_prediction.dart';
 import 'package:spell_duel/screens/badges/badges_screen.dart';
 import 'package:spell_duel/widgets/badges/badge_unlock_overlay.dart';
 import 'package:spell_duel/widgets/duel/duel_intro.dart';
+import 'package:spell_duel/widgets/duel/opponent_away_overlay.dart';
 import 'package:spell_duel/providers/challenge_provider.dart';
 import 'package:spell_duel/widgets/lobby/challenge_waiting_card.dart';
 import 'package:provider/provider.dart';
@@ -228,6 +229,27 @@ void main() {
       expect(size.height, lessThanOrEqualTo(40), reason: name);
       expect(size.width, lessThanOrEqualTo(240), reason: name);
     }
+  });
+
+  testWidgets('the opponent-away popup counts down', (tester) async {
+    phoneSize(tester);
+    final now = DateTime.now();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OpponentAwayOverlay(
+            name: 'Lotte',
+            left: true,
+            since: now,
+            deadline: now.add(const Duration(seconds: 30)),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Lotte heeft het duel verlaten'), findsOneWidget);
+    expect(find.text('30'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a declined challenge offers retry and home', (tester) async {

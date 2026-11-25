@@ -51,9 +51,18 @@ void main() {
 
   test('the duel history is kept to the latest ones and synced', () async {
     final profile = await _profile();
+    const vsBot = DuelSummary(
+      opponentName: 'Bot',
+      opponentUid: 'mock-bot',
+      won: true,
+      rounds: [],
+      xpGained: 120,
+    );
     for (var i = 0; i < PlayerProfile.maxHistory + 3; i++) {
-      await profile.recordGame(_win(), at: DateTime(2026, 1, 1, 0, i));
+      await profile.recordGame(vsBot, at: DateTime(2026, 1, 1, 0, i));
     }
+    // A duel without the opponent's id is not added.
+    await profile.recordGame(_win(), at: DateTime(2026, 1, 2));
     expect(profile.profile.history, hasLength(PlayerProfile.maxHistory));
     expect(profile.profile.history.first.playedAt, DateTime(2026, 1, 1, 0, 22));
 

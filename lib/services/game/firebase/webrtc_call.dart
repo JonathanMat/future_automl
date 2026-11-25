@@ -243,6 +243,7 @@ class WebRtcCall {
       // muted or on the earpiece).
       if (pc == null && audio) await AudioSession.release();
     }
+    if (audio) await AudioSession.endCall();
     if (removeSignaling) await signaling.remove();
     _remoteCtl.add(null);
     _statusCtl.add(CallStatus.closed);

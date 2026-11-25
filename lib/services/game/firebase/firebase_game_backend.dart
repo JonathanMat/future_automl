@@ -294,6 +294,21 @@ class FirebaseGameBackend implements GameBackend {
   }
 
   @override
+  Future<void> claimForfeit() async {
+    final room = _room;
+    final ref = _roomRef;
+    if (room == null || ref == null || room['status'] != 'playing') return;
+    final opponentUid = _isHost ? room['guestUid'] : room['hostUid'];
+    final players = _asMap(room['players']) ?? const {};
+    if (_asMap(players[opponentUid])?['online'] == true) return; // back
+    await ref.update({
+      'status': 'finished',
+      'winnerUid': _uid,
+      'forfeit': true,
+    });
+  }
+
+  @override
   Future<Uint8List?> captureLocalFrame() async {
     final tracks = localStream?.getVideoTracks() ?? const [];
     if (tracks.isEmpty) return null;
@@ -330,11 +345,21 @@ class FirebaseGameBackend implements GameBackend {
     final ref = _roomRef;
     final uid = _uid;
     final wasHost = _isHost;
+    final midGame = _room?['status'] == 'playing';
+    final myName = _asMap(_asMap(_room?['players'])?[uid])?['name'];
     await _cleanup();
     if (ref == null || uid == null) return;
     try {
       await ref.child('players/$uid/online').onDisconnect().cancel();
-      if (wasHost) {
+      if (midGame) {
+        // Keep the room: the opponent waits a moment for you, then wins
+        // (see claimForfeit). For you it is a loss.
+        await ref.update({
+          'players/$uid/online': false,
+          'players/$uid/left': true,
+        });
+        _writeLeaderboard(uid, won: false, name: myName);
+      } else if (wasHost) {
         await ref.update({'status': 'closed', 'signaling': null});
       } else {
         await ref.update({'status': 'closed', 'players/$uid/online': false});
@@ -566,9 +591,6 @@ class FirebaseGameBackend implements GameBackend {
       default:
         phase = GamePhase.waitingForOpponent;
     }
-    if (opponent != null && !opponent.online && status == 'playing') {
-      error ??= '${opponent.name} is offline.';
-    }
 
     RoundResult? lastResult = sameGame ? _state.lastResult : null;
     // Show the result of the last finished round, also after the game ended.
@@ -624,6 +646,7 @@ class FirebaseGameBackend implements GameBackend {
       lives: _asInt(v['lives']),
       shieldsUsed: _asInt(v['shieldsUsed']),
       online: v['online'] == true,
+      left: v['left'] == true,
     );
   }
 
@@ -684,6 +707,9 @@ class FirebaseGameBackend implements GameBackend {
         round == null ||
         (resultAt != null &&
             _serverNow >= resultAt + config.resultPause.inMilliseconds);
+    // The guest is away: no new rounds until they are back (or forfeit).
+    final guestOnline = _asMap(players[guestUid])?['online'] == true;
+    if (readyForNext && !guestOnline) return;
     if (readyForNext && _hostStartedRound <= roundNr) {
       // The first round of each game (also a rematch) waits for the intro.
       final game = _asInt(room['game']);
@@ -740,6 +766,7 @@ class FirebaseGameBackend implements GameBackend {
           },
           'status': 'playing',
           'winnerUid': null,
+          'forfeit': null,
           'game': ServerValue.increment(1),
           'rematch': null,
           'currentRound': roundNr,
@@ -856,16 +883,20 @@ class FirebaseGameBackend implements GameBackend {
     if (room['status'] != 'finished') return;
     final game = _asInt(room['game']);
     if (!_leaderboardRecorded.add(game)) return;
-    final won = room['winnerUid'] == _uid;
     final me = _asMap(_asMap(room['players'])?[_uid]);
     final uid = _uid;
+    if (uid == null) return;
+    _writeLeaderboard(uid, won: room['winnerUid'] == uid, name: me?['name']);
+  }
+
+  void _writeLeaderboard(String uid, {required bool won, Object? name}) {
     // The tag lives in users/{uid} (made by the friends backend).
     _db
         .ref('users/$uid/tag')
         .get()
         .then(
           (tag) => _db.ref('leaderboard/$uid').update({
-            'name': me?['name'] ?? 'Speler',
+            'name': name ?? 'Speler',
             'tag': ?PlayerTag.parse(tag.value),
             'wins': ServerValue.increment(won ? 1 : 0),
             'losses': ServerValue.increment(won ? 0 : 1),

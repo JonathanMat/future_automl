@@ -24,6 +24,7 @@ import '../../widgets/duel/emotes/emote_burst.dart';
 import '../../widgets/duel/emotes/emote_picker.dart';
 import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/gesture_debug_overlay.dart';
+import '../../widgets/duel/opponent_away_overlay.dart';
 import '../../widgets/duel/spell_card_grid.dart';
 import '../../widgets/duel/video_feed.dart';
 import '../../widgets/generic/avatar_tile.dart';
@@ -131,7 +132,10 @@ class _DuelScreenState extends State<DuelScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Duel verlaten?'),
-        content: const Text('Het duel stopt dan voor jullie allebei.'),
+        content: const Text(
+          'Je verliest dan het duel. Je tegenstander wacht nog even op je '
+          'en wint daarna.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -371,6 +375,16 @@ class _DuelScreenState extends State<DuelScreen> {
                       : '${opponentFriend.wins} WINS',
                 ),
                 onDone: () => setState(() => _introDone = true),
+              ),
+            ),
+          if (game.opponentAwaySince case final since?
+              when s.phase != GamePhase.finished)
+            Positioned.fill(
+              child: OpponentAwayOverlay(
+                name: opponentName,
+                left: s.opponent?.left ?? false,
+                since: since,
+                deadline: game.awayDeadline!,
               ),
             ),
         ],

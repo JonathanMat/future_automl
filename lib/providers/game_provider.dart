@@ -20,6 +20,8 @@ class GameProvider extends ChangeNotifier {
     this.recognizer = const ManualSpellRecognizer(),
     this.cameraPermission = const CameraPermissionService(enabled: false),
     this.onGameFinished,
+    this.onGameAbandoned,
+    this.forfeitWait = const Duration(seconds: 30),
   }) {
     _state = backend.state;
     _subs.add(backend.gameState.listen(_onState));
@@ -42,6 +44,17 @@ class GameProvider extends ChangeNotifier {
 
   /// Called once per finished game, e.g. to update the profile.
   Future<void> Function(DuelSummary summary)? onGameFinished;
+
+  /// Called when you leave a game that is still running: it counts as a
+  /// loss for you (the opponent wins after [forfeitWait]).
+  Future<void> Function(DuelSummary summary)? onGameAbandoned;
+
+  /// How long an opponent who left (or lost their connection) during a
+  /// game has to come back before you win.
+  final Duration forfeitWait;
+
+  DateTime? _awaySince;
+  Timer? _forfeitTimer;
 
   final List<StreamSubscription<Object?>> _subs = [];
   late GameState _state;
@@ -91,6 +104,43 @@ class GameProvider extends ChangeNotifier {
 
   bool get inRoom => _state.phase != GamePhase.idle;
 
+  /// When the opponent went away during the game; null while they are
+  /// there. You win at [awayDeadline] unless they come back.
+  DateTime? get opponentAwaySince => _awaySince;
+  DateTime? get awayDeadline => _awaySince?.add(forfeitWait);
+
+  static const _runningPhases = {
+    GamePhase.countdown,
+    GamePhase.cast,
+    GamePhase.resolving,
+    GamePhase.roundResult,
+  };
+
+  /// Starts or stops the countdown for an opponent who is away.
+  void _checkOpponentAway(GameState s) {
+    final away =
+        _runningPhases.contains(s.phase) &&
+        s.opponent != null &&
+        !s.opponent!.online;
+    if (!away) {
+      _awaySince = null;
+      _forfeitTimer?.cancel();
+      _forfeitTimer = null;
+      return;
+    }
+    if (_awaySince != null) return;
+    _awaySince = DateTime.now();
+    _forfeitTimer = Timer(forfeitWait, () async {
+      _forfeitTimer = null;
+      if (_awaySince == null) return; // back in time
+      try {
+        await backend.claimForfeit();
+      } catch (e) {
+        debugPrint('claimForfeit: $e');
+      }
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
@@ -138,6 +188,22 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> leave() async {
     _stopRecognition();
+    final s = _state;
+    if (_runningPhases.contains(s.phase) &&
+        s.opponent != null &&
+        !_finishedHandled) {
+      _finishedHandled = true;
+      await onGameAbandoned?.call(
+        DuelSummary(
+          opponentName: s.opponent!.name,
+          opponentUid: s.opponent!.uid,
+          won: false,
+          rounds: List.unmodifiable(_rounds),
+          xpGained: ProfileProvider.xpFor(won: false),
+          startLives: s.config.startLives,
+        ),
+      );
+    }
     _resetGameStats();
     try {
       await backend.leaveRoom();
@@ -277,6 +343,7 @@ class GameProvider extends ChangeNotifier {
       onGameFinished?.call(summary);
     }
 
+    _checkOpponentAway(s);
     _updateRecognition();
     _notify();
   }
@@ -379,6 +446,7 @@ class GameProvider extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _recognitionTimer?.cancel();
+    _forfeitTimer?.cancel();
     for (final s in _subs) {
       s.cancel();
     }

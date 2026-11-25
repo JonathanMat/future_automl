@@ -21,6 +21,80 @@ void main() {
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  group('opponent away', () {
+    // Slow rounds, so the game is still running during the test.
+    const slow = GameConfig(
+      introLead: Duration.zero,
+      countdown: Duration(seconds: 5),
+      roundLead: Duration.zero,
+    );
+
+    Future<(GameProvider, MockGameBackend)> start({
+      Future<void> Function(DuelSummary)? onAbandoned,
+      Future<void> Function(DuelSummary)? onFinished,
+    }) async {
+      final backend = MockGameBackend(
+        config: slow,
+        useCamera: false,
+        botJoinDelay: const Duration(milliseconds: 10),
+        botEmotes: false,
+      );
+      final game = GameProvider(
+        backend: backend,
+        forfeitWait: const Duration(milliseconds: 80),
+        onGameAbandoned: onAbandoned,
+        onGameFinished: onFinished,
+      );
+      await game.createRoom('Jonathan');
+      await backend.gameState.firstWhere((s) => s.opponent != null);
+      await pumpEventQueue();
+      return (game, backend);
+    }
+
+    test('you win when they stay away', () async {
+      DuelSummary? finished;
+      final (game, backend) = await start(
+        onFinished: (s) async => finished = s,
+      );
+      backend.opponentAway(left: true);
+      await pumpEventQueue();
+      expect(game.opponentAwaySince, isNotNull);
+      expect(game.state.opponent!.left, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(game.state.phase, GamePhase.finished);
+      expect(game.state.iWon, isTrue);
+      expect(game.state.error, isNull, reason: 'a real win: result screen');
+      expect(finished?.won, isTrue);
+      expect(game.opponentAwaySince, isNull);
+      await game.leave();
+      game.dispose();
+    });
+
+    test('the duel goes on when they come back in time', () async {
+      final (game, backend) = await start();
+      backend.opponentAway();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      backend.opponentBack();
+      await pumpEventQueue();
+      expect(game.opponentAwaySince, isNull);
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(game.state.phase, isNot(GamePhase.finished));
+      await game.leave();
+      game.dispose();
+    });
+
+    test('leaving a running game counts as a loss', () async {
+      DuelSummary? abandoned;
+      final (game, _) = await start(onAbandoned: (s) async => abandoned = s);
+      await game.leave();
+      expect(abandoned?.won, isFalse);
+      expect(abandoned?.opponentName, 'Bot');
+      game.dispose();
+    });
+  });
+
   test('a full game produces a summary and updates the profile', () async {
     final profile = ProfileProvider(LocalStorageService());
     await profile.load();

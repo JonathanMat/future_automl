@@ -123,8 +123,65 @@ class MockGameBackend implements GameBackend {
     online: true,
   );
 
+  /// The bot drops out (for tests): [left] on purpose, else a lost
+  /// connection. No new rounds start until it is back.
+  void opponentAway({bool left = false}) {
+    final bot = _state.opponent;
+    if (bot == null) return;
+    _emit(
+      _state.copyWith(opponent: _withPresence(bot, online: false, left: left)),
+    );
+  }
+
+  /// The bot is back: the game goes on.
+  void opponentBack() {
+    final bot = _state.opponent;
+    if (bot == null || bot.online) return;
+    _emit(_state.copyWith(opponent: _withPresence(bot, online: true)));
+    if (_waitingForBot) {
+      _waitingForBot = false;
+      _startRound();
+    }
+  }
+
+  bool _waitingForBot = false;
+
+  PlayerState _withPresence(
+    PlayerState p, {
+    required bool online,
+    bool left = false,
+  }) => PlayerState(
+    uid: p.uid,
+    name: p.name,
+    lives: p.lives,
+    shieldsUsed: p.shieldsUsed,
+    online: online,
+    left: left,
+  );
+
+  @override
+  Future<void> claimForfeit() async {
+    final bot = _state.opponent;
+    final running = {
+      GamePhase.countdown,
+      GamePhase.cast,
+      GamePhase.resolving,
+      GamePhase.roundResult,
+    }.contains(_state.phase);
+    if (bot == null || bot.online || !running) return;
+    _cancelTimers();
+    _waitingForBot = false;
+    _wins++;
+    _emit(_state.copyWith(phase: GamePhase.finished, iWon: true));
+  }
+
   /// [intro]: first round of a game, wait for the "VS" intro.
   void _startRound({bool intro = false}) {
+    // Like the Firebase host: no new round while the opponent is away.
+    if (_state.opponent?.online == false) {
+      _waitingForBot = true;
+      return;
+    }
     final castAt = DateTime.now()
         .add(config.roundLead)
         .add(intro ? config.introLead : Duration.zero)
@@ -192,7 +249,8 @@ class MockGameBackend implements GameBackend {
       name: bot.name,
       lives: bot.lives - (r.winner == Side.host ? 1 : 0),
       shieldsUsed: r.guestShieldsUsed,
-      online: true,
+      online: bot.online,
+      left: bot.left,
     );
     final finished = newMe.lives <= 0 || newBot.lives <= 0;
     if (finished) newMe.lives > 0 ? _wins++ : _losses++;

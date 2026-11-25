@@ -158,6 +158,13 @@ class _SpellDuelAppState extends State<SpellDuelApp>
       );
       await _tournament.onGameFinished(summary, iWon: iWon);
     },
+    // Left a running game: a loss (the opponent wins after the wait).
+    onGameAbandoned: (summary) => widget.profile.recordGame(
+      summary,
+      vsFriend:
+          summary.opponentUid != null &&
+          _friends.isFriend(summary.opponentUid!),
+    ),
   );
   late final TournamentProvider _tournament = TournamentProvider(
     backend: widget.tournaments ?? MockTournamentBackend(),
@@ -197,6 +204,13 @@ class _SpellDuelAppState extends State<SpellDuelApp>
     widget.profile.addListener(_applySettings);
     WidgetsBinding.instance.addObserver(this);
     _game.addListener(_onGame);
+    _challenges.addListener(_onChallenges);
+    // Tapping a challenge notification: show the banner on Home.
+    _openedPush = widget.push.openedChallenge.listen(
+      (_) =>
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showChallenge()),
+      onError: (Object e) => debugPrint('push opened: $e'),
+    );
   }
 
   /// Back from the background: Android may have stopped the sound engine.
@@ -209,6 +223,53 @@ class _SpellDuelAppState extends State<SpellDuelApp>
 
   bool _wasInRoom = false;
   Timer? _sfxRestart;
+
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  final _routes = _RouteTracker();
+  StreamSubscription<void>? _openedPush;
+
+  /// Invites already announced, so each one is announced once.
+  final Set<String> _announced = {};
+
+  /// Screens that show the challenge banner themselves.
+  static const _bannerRoutes = {
+    AppRoutes.home,
+    AppRoutes.friends,
+    AppRoutes.leaderboard,
+  };
+
+  /// A new challenge while the app is open: Android shows no push then,
+  /// and only some screens have the banner. Show a message elsewhere
+  /// (not during a duel; the banner waits on Home for after it).
+  void _onChallenges() {
+    final incoming = _challenges.incoming;
+    final fresh = [
+      for (final i in incoming)
+        if (_announced.add('${i.fromUid}/${i.roomCode}')) i,
+    ];
+    if (fresh.isEmpty || _game.inRoom) return;
+    if (_bannerRoutes.contains(_routes.current)) return;
+    if (_routes.current == AppRoutes.onboarding) return;
+    final invite = fresh.first;
+    _messengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('⚡ ${invite.name} daagt je uit!'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(label: 'Bekijk', onPressed: _showChallenge),
+        ),
+      );
+  }
+
+  /// To Home, where the challenge banner is (with Speel / Weiger).
+  void _showChallenge() {
+    final context = _navigatorKey.currentContext;
+    if (context == null || _game.inRoom) return;
+    if (!widget.profile.profile.hasName) return;
+    AppRouter.goHome(context);
+  }
 
   /// A call just ended: restart the sound engine once Android has left
   /// call mode (see [SfxService.restart]).
@@ -234,6 +295,8 @@ class _SpellDuelAppState extends State<SpellDuelApp>
     WidgetsBinding.instance.removeObserver(this);
     _game.removeListener(_onGame);
     _sfxRestart?.cancel();
+    _challenges.removeListener(_onChallenges);
+    _openedPush?.cancel();
     _account.dispose();
     _tournament.dispose();
     _challenges.dispose();
@@ -256,6 +319,9 @@ class _SpellDuelAppState extends State<SpellDuelApp>
       child: MaterialApp(
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
+        navigatorKey: _navigatorKey,
+        scaffoldMessengerKey: _messengerKey,
+        navigatorObservers: [_routes],
         theme: AppTheme.dark(),
         darkTheme: AppTheme.dark(),
         themeMode: ThemeMode.dark,
@@ -285,5 +351,33 @@ class _SpellDuelAppState extends State<SpellDuelApp>
         ],
       ),
     );
+  }
+}
+
+/// Remembers which named route is on top, e.g. to know whether the
+/// current screen shows the challenge banner.
+class _RouteTracker extends NavigatorObserver {
+  String? current;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _set(route);
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
+      _set(newRoute);
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _set(previousRoute);
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route.isCurrent) _set(previousRoute);
+  }
+
+  void _set(Route<dynamic>? route) {
+    // Dialogs and sheets have no name: keep the screen below.
+    if (route is PageRoute) current = route.settings.name;
   }
 }

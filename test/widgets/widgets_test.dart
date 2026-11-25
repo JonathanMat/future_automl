@@ -455,6 +455,7 @@ void main() {
         await profile.recordGame(
           DuelSummary(
             opponentName: 'Tegenstander $i',
+            opponentUid: 'u$i',
             won: i.isEven,
             rounds: const [],
             xpGained: 10,
@@ -542,6 +543,47 @@ void main() {
       expect(find.text('AAN DE SLAG'), findsOneWidget);
       expect(find.text('Je account is verwijderd.'), findsOneWidget);
       expect(profile.profile.hasName, isFalse);
+    });
+
+    testWidgets('a challenge while on another screen shows a message', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      final friends = MockFriendsBackend();
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        SpellDuelApp(
+          backend: MockGameBackend(useCamera: false),
+          profile: profile,
+          friends: friends,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Instellingen'));
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+      friends.receiveInvite(
+        ChallengeInvite(
+          fromUid: 'lotte',
+          name: 'Lotte',
+          roomCode: 'ABCD',
+          sentAt: DateTime.now(),
+        ),
+      );
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(find.text('⚡ Lotte daagt je uit!'), findsOneWidget);
+
+      await tester.tap(find.text('Bekijk'));
+      await _pumpFor(tester, const Duration(milliseconds: 800));
+      expect(find.text('Instellingen'), findsNothing);
+      expect(
+        find.textContaining('daagt je uit!', findRichText: true),
+        findsWidgets,
+      );
+      expect(find.text('Speel'), findsOneWidget);
     });
 
     testWidgets('a bad room code shows a validation error', (tester) async {

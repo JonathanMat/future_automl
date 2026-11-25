@@ -156,7 +156,10 @@ class ProfileProvider extends ChangeNotifier {
         vsFriend: vsFriend,
       ),
       lastDuel: duel,
-      history: [duel, ..._profile.history.take(PlayerProfile.maxHistory - 1)],
+      // Only duels that can link to the opponent's profile.
+      history: summary.opponentUid == null
+          ? _profile.history
+          : [duel, ..._profile.history.take(PlayerProfile.maxHistory - 1)],
     );
 
     // Match on the account id when we have one, otherwise on the name.

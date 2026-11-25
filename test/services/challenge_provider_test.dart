@@ -24,6 +24,9 @@ class _RecordingPush implements PushService {
 
   @override
   Future<void> notifyChallenge(String toUid) async => notified.add(toUid);
+
+  @override
+  Stream<void> get openedChallenge => const Stream.empty();
 }
 
 void main() {
