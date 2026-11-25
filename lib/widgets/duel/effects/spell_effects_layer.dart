@@ -29,6 +29,10 @@ class SpellEffectsLayer extends StatefulWidget {
     required this.bottomKey,
     required this.child,
     this.scrubTime,
+    this.timeScale = 1,
+    this.foreground,
+    this.underlay,
+    this.overlay,
   });
 
   /// The result being shown, or null between results. A result with a new
@@ -41,6 +45,19 @@ class SpellEffectsLayer extends StatefulWidget {
   /// For the effects preview: freeze the effect at this time (seconds)
   /// instead of playing it.
   final double? scrubTime;
+
+  /// Below 1 plays the effect in slow motion (the killcam).
+  final double timeScale;
+
+  /// Drawn on top of the effect, moving with the screen shake (the face
+  /// effects in the killcam).
+  final Widget? foreground;
+
+  /// While an effect plays: extra widgets placed with the cameras' rects
+  /// and the effect's time — [underlay] under the effect (a frozen camera
+  /// photo), [overlay] over it (the face effects).
+  final Widget? Function(FxContext ctx, double time)? underlay;
+  final Widget? Function(FxContext ctx, double time)? overlay;
 
   @override
   State<SpellEffectsLayer> createState() => _SpellEffectsLayerState();
@@ -120,7 +137,7 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
   void _tick(Duration elapsed) {
     final planned = _planned;
     if (planned == null) return;
-    _t = elapsed.inMicroseconds / 1e6;
+    _t = elapsed.inMicroseconds / 1e6 * widget.timeScale;
     _ctx = _measure() ?? _ctx;
 
     final impacts = planned.fx.impacts;
@@ -233,6 +250,7 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
             // Separate layers, so redrawing the effect every frame does not
             // repaint the whole duel screen underneath.
             RepaintBoundary(child: widget.child),
+            if (active) ?widget.underlay?.call(ctx, _t),
             if (active)
               Positioned.fill(
                 child: IgnorePointer(
@@ -243,6 +261,9 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
                   ),
                 ),
               ),
+            if (active) ?widget.overlay?.call(ctx, _t),
+            if (widget.foreground case final fg?)
+              Positioned.fill(child: IgnorePointer(child: fg)),
           ],
         ),
       ),

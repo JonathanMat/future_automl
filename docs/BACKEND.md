@@ -297,3 +297,42 @@ tournaments/{code}:
 **Testen op één toestel**: `flutter run --dart-define=BACKEND=mock` →
 Toernooi maken → **+3 test-bots** (zo vaak je wilt) → START. Bots spelen
 onderling vanzelf; tegen jou speel je het gewone bot-duel.
+
+## Killcam + gezichtseffecten
+
+De laatste cast van een duel speelt niet op normale snelheid maar meteen
+als **killcam**: de twee camera's worden groot, het beeld bevriest (een
+foto van beide camera's op het moment van onthullen, `captureFrame`), de
+spreuk speelt één keer aan 0,4× en eindigt op "K.O.!". Daarna opent het
+resultaatscherm (`lib/widgets/duel/killcam.dart`).
+
+Op die foto's zoekt **MediaPipe Face Landmarker** het gezicht
+(`assets/models/face_landmarker.task`, Google's officiële float16-model,
+sha256 `64184e22…bc9ff`; 478 punten). Daarmee:
+
+- **IJs**: vorst groeit vanaf wangen en voorhoofd, blauwe lippen, ijspegels
+  aan de wenkbrauwen, glazige ogen.
+- **Vuur**: roet op wangen en voorhoofd, gloeiende rand, rook en vonken.
+- **Bliksem**: witte flits, gloeiende ogen, vonken over het gezicht.
+- **Schildslag**: sterretjes rond het hoofd, draaiende spiraalogen.
+- De **winnaar**: ogen lichten op in de kleur van zijn spreuk.
+
+**Elke ronde (hit-freeze):** de video loopt live door, dus een effect kan
+niet op een bewegend gezicht plakken. Bij de onthulling neemt de app een
+foto van de camera van wie verliest (en neemt nieuwe foto's tot het gezicht
+in beeld is, bv. als een hand het bedekt). Bij de inslag bevriest die camera
+even op die foto, het effect landt precies op het gezicht, daarna loopt de
+video weer live. Gemeten op een Android-toestel: gezicht gevonden in
+0,2–0,3 s, ruim vóór de inslag.
+
+Het gezicht van wie geraakt wordt, komt na de inslag door het effect heen
+(rondom bevroren/brandend, het gezicht zelf ook). Sommige telefoons geven
+de camerafoto gedraaid: de stand wordt uit het gezicht zelf afgeleid (kin →
+voorhoofd) en de foto rechtop getoond. Geen gezicht gevonden → het effect
+speelt zoals vroeger over de hele camera.
+
+Uitproberen zonder camera: Instellingen → Spreuk-effecten bekijken → de
+paarse 🎬-knoppen (getekende gezichten). `FaceConstants.debug = true` tekent
+alle gezichtspunten in de killcam, om de uitlijning op een toestel te
+controleren. Getest op macOS met de echte MediaPipe: model laden ±0,3 s,
+één gezicht zoeken 15–40 ms.

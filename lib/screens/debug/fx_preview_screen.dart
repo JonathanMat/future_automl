@@ -8,6 +8,8 @@ import '../../theme/app_text_styles.dart';
 import '../../models/badge.dart';
 import '../../widgets/badges/badge_unlock_overlay.dart';
 import '../../widgets/duel/duel_intro.dart';
+import '../../widgets/duel/killcam.dart';
+import 'demo_face.dart';
 import '../../widgets/duel/effects/spell_effects_layer.dart';
 import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/video_feed.dart';
@@ -67,6 +69,55 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
         reason: r.reason,
       );
     });
+  }
+
+  /// The final cast as in a real duel: the killcam with drawn faces, so
+  /// the face effects can be checked without a camera.
+  static const _killcams = <(String, Spell, Spell)>[
+    ('🎬 Jij bevroren', Spell.vuur, Spell.ijs),
+    ('🎬 Vuur op jou', Spell.bliksem, Spell.vuur),
+    ('🎬 Bliksem op jou', Spell.ijs, Spell.bliksem),
+    ('🎬 Jij bevriest hem', Spell.ijs, Spell.vuur),
+    ('🎬 Schildslag', Spell.schild, Spell.schild),
+  ];
+
+  Future<void> _killcam(Spell mine, Spell? theirs) async {
+    final r = resolveRound(hostSpell: mine, guestSpell: theirs);
+    final result = RoundResult(
+      round: 99,
+      mySpell: r.hostSpell,
+      opponentSpell: r.guestSpell,
+      outcome: r.winner == null
+          ? RoundOutcome.draw
+          : (r.winner == Side.host ? RoundOutcome.win : RoundOutcome.lose),
+      reason: r.reason,
+    );
+    final top = await DemoFace.png(
+      skin: const Color(0xFFC98E68),
+      hair: const Color(0xFF1C1410),
+      shirt: const Color(0xFF1E9E8A),
+    );
+    final bottom = await DemoFace.png();
+    if (!mounted) return;
+    final frames = KillcamFrames(
+      round: 99,
+      top: top,
+      bottom: bottom,
+      topFace: DemoFace.shape(),
+      bottomFace: DemoFace.shape(),
+    );
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        pageBuilder: (context, _, _) => KillcamOverlay(
+          result: result,
+          frames: frames,
+          myName: 'Jonathan',
+          opponentName: 'Maarten',
+          onDone: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
   }
 
   void _setSlow(bool slow) {
@@ -213,6 +264,21 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
                             backgroundColor: AppColors.surfaceRaised,
                             side: BorderSide.none,
                             onPressed: () => _play(mine, theirs),
+                          ),
+                        for (final (label, mine, theirs) in _killcams)
+                          ActionChip(
+                            label: Text(label),
+                            labelStyle: AppTextStyles.body(
+                              12,
+                              weight: FontWeight.w900,
+                            ),
+                            backgroundColor: AppColors.purple,
+                            side: BorderSide.none,
+                            onPressed: () => _killcam(
+                              mine,
+                              // Shield bash: the opponent casts nothing.
+                              mine == Spell.schild ? null : theirs,
+                            ),
                           ),
                         for (final (label, action) in [
                           ('▶ VS-intro', () => setState(() => _intro = true)),
