@@ -57,6 +57,7 @@ class TournamentData {
     this.players = const {},
     this.seeds = const [],
     this.rooms = const {},
+    this.readyAt = const {},
     this.results = const {},
     this.startedAt,
   });
@@ -72,6 +73,9 @@ class TournamentData {
 
   /// Room code per match id, written by the first player of the match.
   final Map<String, String> rooms;
+
+  /// Server ms per match and player, when they accepted the duel.
+  final Map<String, Map<String, int>> readyAt;
   final Map<String, MatchResult> results;
 
   /// Server ms when the host started.
@@ -86,6 +90,7 @@ class TournamentData {
     Map<String, TournamentPlayer>? players,
     List<String>? seeds,
     Map<String, String>? rooms,
+    Map<String, Map<String, int>>? readyAt,
     Map<String, MatchResult>? results,
     int? startedAt,
   }) => TournamentData(
@@ -95,6 +100,7 @@ class TournamentData {
     players: players ?? this.players,
     seeds: seeds ?? this.seeds,
     rooms: rooms ?? this.rooms,
+    readyAt: readyAt ?? this.readyAt,
     results: results ?? this.results,
     startedAt: startedAt ?? this.startedAt,
   );

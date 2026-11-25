@@ -42,14 +42,25 @@ abstract class TournamentBackend {
   /// The first player of a match made [roomCode] for it.
   Future<void> setRoom(String code, String matchId, String roomCode);
 
+  /// Records or withdraws a player's acceptance of this match.
+  Future<void> setMatchReady(
+    String code,
+    String matchId,
+    String uid, {
+    required bool ready,
+  });
+
   /// Reports who won [matchId]. The first report counts; later ones are
   /// ignored (the host may overrule with [force]).
-  Future<void> reportResult(
+  /// Returns whether the report was saved. [noShow] is the opponent in a
+  /// walk-over claimed after waiting for them to accept.
+  Future<bool> reportResult(
     String code,
     String matchId,
     String winner, {
     bool walkover = false,
     bool force = false,
+    String? noShow,
   });
 
   /// Host: the final is decided.

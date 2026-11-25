@@ -7,6 +7,7 @@ import '../../navigators/app_router.dart';
 import '../../providers/challenge_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../providers/tournament_provider.dart';
 import '../../services/game/game_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
@@ -19,6 +20,7 @@ import '../../widgets/lobby/challenge_waiting_card.dart';
 import '../../widgets/lobby/lobby_player_card.dart';
 import '../../widgets/lobby/room_code_card.dart';
 import '../../widgets/lobby/video_share_card.dart';
+import '../../widgets/tournament/match_status_card.dart';
 
 /// Duel room: share the code, wait for the opponent, then the duel starts.
 class LobbyScreen extends StatefulWidget {
@@ -121,6 +123,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final config = s.config;
     final opponent = s.opponent;
     final challenges = context.watch<ChallengeProvider>();
+    final tournament = context.watch<TournamentProvider?>();
     // Waiting for a challenged friend (null once they join).
     final challenge = opponent == null ? challenges.outgoing : null;
 
@@ -181,6 +184,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         ],
                       ),
                     ),
+                    if (tournament != null && tournament.inMatch)
+                      WalkoverAction(
+                        t: tournament,
+                        onClaim: () async {
+                          if (await tournament.claimWalkover() && mounted) {
+                            await _leave();
+                          }
+                        },
+                      ),
                     const SizedBox(height: 14),
                     VideoShareCard(
                       value: profile.shareVideo,

@@ -33,9 +33,6 @@ import 'tournament_beamer_screen.dart';
 class TournamentScreen extends StatefulWidget {
   const TournamentScreen({super.key});
 
-  /// Seconds before your duel starts by itself after the call-up.
-  static const callUpSeconds = 5;
-
   @override
   State<TournamentScreen> createState() => _TournamentScreenState();
 }
@@ -52,9 +49,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
   String? _drawFor;
   bool _showChampion = false;
   String? _callUpFor;
-  CallUpStage _stage = CallUpStage.countdown;
-  int _seconds = TournamentScreen.callUpSeconds;
-  Timer? _countdown;
+  CallUpStage _stage = CallUpStage.ready;
   final _viewer = TransformationController();
   bool _fitted = false;
 
@@ -76,7 +71,10 @@ class _TournamentScreenState extends State<TournamentScreen> {
   @override
   void dispose() {
     _t.removeListener(_sync);
-    _countdown?.cancel();
+    final id = _callUpFor;
+    if (id != null && _stage == CallUpStage.waitingForRoom) {
+      unawaited(_t.cancelPlay(id));
+    }
     _viewer.dispose();
     super.dispose();
   }
@@ -149,39 +147,22 @@ class _TournamentScreenState extends State<TournamentScreen> {
         !t.inMatch &&
         !_game.inRoom &&
         !_showChampion &&
-        !_dismissed.contains(m.id) &&
+        !_dismissed.contains(_dismissalKey(m.id)) &&
         _onTop) {
       _startCallUp(m.id);
     }
   }
 
-  void _startCallUp(
-    String matchId, {
-    int seconds = TournamentScreen.callUpSeconds,
-  }) {
-    _countdown?.cancel();
+  String _dismissalKey(String id) => '${_t.code}/$id';
+
+  void _startCallUp(String matchId) {
     setState(() {
       _callUpFor = matchId;
-      _stage = CallUpStage.countdown;
-      _seconds = seconds;
-    });
-    if (seconds <= 0) {
-      _play();
-      return;
-    }
-    _countdown = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      setState(() => _seconds--);
-      if (_seconds <= 0) {
-        timer.cancel();
-        _play();
-      }
+      _stage = CallUpStage.ready;
     });
   }
 
   void _cancelCallUp() {
-    _countdown?.cancel();
-    _countdown = null;
     if (_callUpFor != null && mounted) setState(() => _callUpFor = null);
   }
 
@@ -190,7 +171,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
   Future<void> _play() async {
     if (_playing) return;
     _playing = true;
-    _countdown?.cancel();
     final id = _callUpFor;
     setState(() => _stage = CallUpStage.joining);
     final outcome = await _t.play();
@@ -201,15 +181,16 @@ class _TournamentScreenState extends State<TournamentScreen> {
         // Back from the room without playing: no second call-up.
         setState(() {
           _callUpFor = null;
-          if (id != null) _dismissed.add(id);
+          if (id != null) _dismissed.add(_dismissalKey(id));
         });
         unawaited(Navigator.of(context).pushNamed(AppRoutes.lobby));
       case PlayOutcome.waitForRoom:
         setState(() => _stage = CallUpStage.waitingForRoom);
+        _sync();
       case PlayOutcome.failed:
         setState(() {
           _callUpFor = null;
-          if (id != null) _dismissed.add(id);
+          if (id != null) _dismissed.add(_dismissalKey(id));
         });
         await _showFailure();
     }
@@ -234,15 +215,19 @@ class _TournamentScreenState extends State<TournamentScreen> {
 
   void _later() {
     final id = _callUpFor;
+    if (id != null && _stage == CallUpStage.waitingForRoom) {
+      unawaited(_t.cancelPlay(id));
+    }
     _cancelCallUp();
-    if (id != null) _dismissed.add(id);
+    if (id != null) _dismissed.add(_dismissalKey(id));
   }
 
   void _playNow() {
     final m = _t.myMatch;
     if (m == null || !m.isReady) return;
-    _dismissed.remove(m.id);
-    _startCallUp(m.id, seconds: 0);
+    _dismissed.remove(_dismissalKey(m.id));
+    _startCallUp(m.id);
+    _play();
   }
 
   Future<void> _closeChampion() async {
@@ -385,7 +370,6 @@ class _TournamentScreenState extends State<TournamentScreen> {
         fitted: _fitted,
         onFitted: () => _fitted = true,
         onPlay: _playNow,
-        onClaim: t.claimWalkover,
         onTapMatch: t.isHost ? _decide : null,
         animateIn: _drawFor == null,
       );
@@ -463,9 +447,11 @@ class _TournamentScreenState extends State<TournamentScreen> {
               opponentOffline: opp != null && !opp.online,
               roundName: Bracket.roundName(m.round, t.bracket.rounds.length),
               stage: _stage,
-              secondsLeft: _seconds,
               onPlay: _play,
               onLater: _later,
+              walkover: _stage == CallUpStage.waitingForRoom
+                  ? WalkoverAction(t: t)
+                  : null,
             ),
           ),
         if (_showChampion && champ != null)
@@ -498,7 +484,6 @@ class _BracketBody extends StatelessWidget {
     required this.fitted,
     required this.onFitted,
     required this.onPlay,
-    required this.onClaim,
     required this.onTapMatch,
     required this.animateIn,
   });
@@ -508,7 +493,6 @@ class _BracketBody extends StatelessWidget {
   final bool fitted;
   final VoidCallback onFitted;
   final VoidCallback onPlay;
-  final VoidCallback onClaim;
   final ValueChanged<BracketMatch>? onTapMatch;
   final bool animateIn;
 
@@ -525,12 +509,7 @@ class _BracketBody extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
-          child: MatchStatusCard(
-            t: t,
-            onPlay: onPlay,
-            onClaim: onClaim,
-            onDone: t.leave,
-          ),
+          child: MatchStatusCard(t: t, onPlay: onPlay, onDone: t.leave),
         ),
         const SizedBox(height: 14),
         Padding(

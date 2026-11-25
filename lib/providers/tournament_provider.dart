@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../models/duel_summary.dart';
+import '../models/game_state.dart';
 import '../services/game/mock_game_backend.dart';
 import '../services/tournament/tournament_backend.dart';
 import 'friends_provider.dart';
@@ -118,25 +119,29 @@ class TournamentProvider extends ChangeNotifier {
   int get _serverNow =>
       _clock().add(backend.serverOffset).millisecondsSinceEpoch;
 
-  /// How long your ready match has been waiting for your opponent.
-  Duration get waitingFor {
-    final since = myMatch?.readySince;
-    if (since == null || !(myMatch?.isReady ?? false)) return Duration.zero;
-    return Duration(milliseconds: max(0, _serverNow - since));
+  bool get waitingForOpponent {
+    final m = myMatch, opp = myOpponent;
+    if (m == null || !m.isReady || opp == null) return false;
+    final times = _data?.readyAt[m.id];
+    if (times?[myUid] == null || (opp.online && times?[opp.uid] != null)) {
+      return false;
+    }
+    return !inMatch ||
+        (_activeMatch == m.id &&
+            game.state.phase == GamePhase.waitingForOpponent &&
+            game.state.opponent == null);
   }
 
-  /// Your opponent didn't show up: you may take the win.
-  bool get canClaimWalkover {
-    final m = myMatch, opp = myOpponent;
-    if (m == null || !m.isReady || opp == null || inMatch) return false;
-    return waitingFor >= (opp.online ? walkoverWait : offlineWait);
-  }
+  bool get canClaimWalkover =>
+      !_busy && waitingForOpponent && walkoverIn == Duration.zero;
 
   /// Seconds until [canClaimWalkover], for a countdown in the UI.
   Duration get walkoverIn {
-    final opp = myOpponent;
-    if (opp == null) return Duration.zero;
-    final left = (opp.online ? walkoverWait : offlineWait) - waitingFor;
+    final since = _data?.readyAt[myMatch?.id]?[myUid];
+    if (since == null) return Duration.zero;
+    final waited = Duration(milliseconds: max(0, _serverNow - since));
+    final left =
+        (myOpponent?.online == false ? offlineWait : walkoverWait) - waited;
     return left.isNegative ? Duration.zero : left;
   }
 
@@ -207,12 +212,17 @@ class TournamentProvider extends ChangeNotifier {
 
   Future<void> leave() async {
     final c = _code, me = myUid;
+    final m = myMatch;
+    final wasReady = _data?.readyAt[m?.id]?[me] != null;
     final host = isHost;
     _stopFollowing();
     _activeMatch = null;
     _lastMatch = null;
     _notify();
-    if (c != null && me != null) await backend.leave(c, me, isHost: host);
+    if (c != null && me != null) {
+      await backend.leave(c, me, isHost: host);
+      if (wasReady && m != null) await _clearReady(c, m.id, me);
+    }
   }
 
   void clearError() {
@@ -238,32 +248,59 @@ class TournamentProvider extends ChangeNotifier {
       mock.botName = opponent?.name ?? 'Bot';
     }
 
-    if (m.a == me) {
-      final room = await game.createRoom(profile.profile.name);
-      if (room == null) {
-        _error = game.actionError ?? 'Kamer maken mislukt.';
-        _notify();
+    try {
+      await backend.setMatchReady(d.code, m.id, me, ready: true);
+      if (_code != d.code || myMatch?.id != m.id) return PlayOutcome.failed;
+
+      final name = profile.profile.name;
+      if (m.a == me) {
+        final room = await game.createRoom(name);
+        if (room == null) {
+          throw TournamentException(game.actionError ?? 'Kamer maken mislukt.');
+        }
+        try {
+          await backend.setRoom(d.code, m.id, room);
+        } catch (_) {
+          await game.leave();
+          rethrow;
+        }
+      } else {
+        final room = _data?.rooms[m.id];
+        if (room == null) return PlayOutcome.waitForRoom;
+        if (!await game.joinRoom(room, name)) {
+          throw TournamentException(
+            game.actionError ?? 'Meedoen aan de kamer mislukt.',
+          );
+        }
+      }
+      if (_code != d.code || myMatch?.id != m.id) {
+        await game.leave();
         return PlayOutcome.failed;
       }
-      await backend.setRoom(d.code, m.id, room);
       _activeMatch = m.id;
       _sawRoom = game.inRoom;
       _notify();
       return PlayOutcome.inRoom;
-    }
-
-    final room = d.rooms[m.id];
-    if (room == null) return PlayOutcome.waitForRoom;
-    final ok = await game.joinRoom(room, profile.profile.name);
-    if (!ok) {
-      _error = game.actionError ?? 'Meedoen aan de kamer mislukt.';
-      _notify();
+    } catch (e) {
+      await _clearReady(d.code, m.id, me);
+      _error = e is TournamentException
+          ? e.message
+          : 'Het duel kon niet starten.';
       return PlayOutcome.failed;
     }
-    _activeMatch = m.id;
-    _sawRoom = game.inRoom;
-    _notify();
-    return PlayOutcome.inRoom;
+  }
+
+  Future<void> cancelPlay(String matchId) async {
+    final code = _code, me = myUid;
+    if (code != null && me != null) await _clearReady(code, matchId, me);
+  }
+
+  Future<void> _clearReady(String code, String matchId, String uid) async {
+    try {
+      await backend.setMatchReady(code, matchId, uid, ready: false);
+    } catch (e) {
+      debugPrint('Tournament: could not clear match readiness: $e');
+    }
   }
 
   /// The room for your match, once your opponent made it.
@@ -304,18 +341,34 @@ class TournamentProvider extends ChangeNotifier {
     if (game.inRoom) {
       _sawRoom = true;
     } else if (_sawRoom) {
+      final match = _activeMatch!;
       _sawRoom = false;
       _activeMatch = null;
+      unawaited(cancelPlay(match));
       _notify();
     }
   }
 
   /// Your opponent didn't show: take the win.
-  Future<void> claimWalkover() async {
-    final d = _data, m = myMatch, me = myUid;
-    if (d == null || m == null || me == null || !canClaimWalkover) return;
-    await backend.reportResult(d.code, m.id, me, walkover: true);
-    _notify();
+  Future<bool> claimWalkover() async {
+    final d = _data, m = myMatch, me = myUid, opp = myOpponent;
+    if (d == null ||
+        m == null ||
+        me == null ||
+        opp == null ||
+        !canClaimWalkover) {
+      return false;
+    }
+    return await _run(
+          () => backend.reportResult(
+            d.code,
+            m.id,
+            me,
+            walkover: true,
+            noShow: opp.uid,
+          ),
+        ) ??
+        false;
   }
 
   /// Host: decide a match that is stuck (somebody left).

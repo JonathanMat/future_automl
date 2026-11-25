@@ -17,7 +17,8 @@ import 'tournament_backend.dart';
 ///   players/{uid}: {name, tag, joinedAt, online}
 ///   seeds: [uid | "_bye", …]               the draw, written at the start
 ///   rooms/{matchId}: roomCode              by the first player of a match
-///   results/{matchId}: {winner, at, walkover}
+///   readyAt/{matchId}/{uid}: server timestamp of acceptance
+///   results/{matchId}: {winner, at, walkover, noShow?}
 /// ```
 /// The bracket is never stored: every phone computes it from `seeds` and
 /// `results` (see `Bracket`). The rules let only players write rooms and
@@ -146,22 +147,55 @@ class FirebaseTournamentBackend extends TournamentBackend {
       _ref(code).child('rooms/$matchId').set(roomCode);
 
   @override
-  Future<void> reportResult(
+  Future<void> setMatchReady(
+    String code,
+    String matchId,
+    String uid, {
+    required bool ready,
+  }) async {
+    final ref = _ref(code).child('readyAt/$matchId/$uid');
+    if (ready) {
+      await ref.onDisconnect().remove();
+      await ref.runTransaction((value) {
+        return value == null
+            ? Transaction.success(ServerValue.timestamp)
+            : Transaction.abort();
+      }, applyLocally: false);
+    } else {
+      await ref.remove();
+    }
+  }
+
+  @override
+  Future<bool> reportResult(
     String code,
     String matchId,
     String winner, {
     bool walkover = false,
     bool force = false,
+    String? noShow,
   }) async {
+    final ref = _ref(code).child('results/$matchId');
+    final result = {
+      'winner': winner,
+      'at': ServerValue.timestamp,
+      'walkover': walkover,
+      'noShow': ?noShow,
+    };
+    if (force) {
+      await ref.set(result);
+      return true;
+    }
     try {
-      await _ref(code).child('results/$matchId').set({
-        'winner': winner,
-        'at': ServerValue.timestamp,
-        'walkover': walkover,
-      });
+      final transaction = await ref.runTransaction((value) {
+        return value == null
+            ? Transaction.success(result)
+            : Transaction.abort();
+      }, applyLocally: false);
+      return transaction.committed;
     } on FirebaseException catch (e) {
-      // Someone (the opponent) reported first: theirs counts.
-      if (e.code == 'permission-denied' && !force) return;
+      // The match may have been decided or the opponent may just have accepted.
+      if (e.code == 'permission-denied') return false;
       rethrow;
     }
   }
@@ -260,6 +294,19 @@ class FirebaseTournamentBackend extends TournamentBackend {
       }
     }
 
+    final readyAt = <String, Map<String, int>>{};
+    final rawReadyAt = value['readyAt'];
+    if (rawReadyAt is Map) {
+      for (final e in rawReadyAt.entries) {
+        final times = e.value;
+        if (times is! Map) continue;
+        readyAt['${e.key}'] = {
+          for (final time in times.entries)
+            if (time.value is num) '${time.key}': (time.value as num).toInt(),
+        };
+      }
+    }
+
     final status = switch (value['status']) {
       'running' => TournamentStatus.running,
       'finished' => TournamentStatus.finished,
@@ -274,6 +321,7 @@ class FirebaseTournamentBackend extends TournamentBackend {
       players: players,
       seeds: seeds,
       rooms: rooms,
+      readyAt: readyAt,
       results: results,
       startedAt: started is num ? started.toInt() : null,
     );

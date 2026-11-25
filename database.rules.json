@@ -84,6 +84,14 @@
             ".validate": "$match.matches(/^r[0-9]m[0-9]{1,2}$/) && newData.isString() && newData.val().length <= 8"
           }
         },
+        "readyAt": {
+          "$match": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && root.child('tournaments/' + $code + '/players/' + $uid).exists()",
+              ".validate": "$match.matches(/^r[0-9]m[0-9]{1,2}$/) && auth != null && auth.uid === $uid && !data.exists() && newData.val() === now && root.child('tournaments/' + $code + '/status').val() === 'running' && !root.child('tournaments/' + $code + '/results/' + $match).exists()"
+            }
+          }
+        },
         "results": {
           "$match": {
             ".write": "auth != null && !data.exists() && root.child('tournaments/' + $code + '/status').val() === 'running' && root.child('tournaments/' + $code + '/players/' + auth.uid).exists()",
@@ -91,6 +99,9 @@
             "winner": { ".validate": "newData.isString()" },
             "at": { ".validate": "newData.isNumber()" },
             "walkover": { ".validate": "newData.isBoolean()" },
+            "noShow": {
+              ".validate": "newData.isString() && auth != null && newData.parent().child('winner').val() === auth.uid && newData.parent().child('walkover').val() === true && newData.val() !== auth.uid && root.child('tournaments/' + $code + '/players/' + newData.val()).exists() && root.child('tournaments/' + $code + '/readyAt/' + $match + '/' + auth.uid).isNumber() && ((root.child('tournaments/' + $code + '/players/' + newData.val() + '/online').val() === false && now >= root.child('tournaments/' + $code + '/readyAt/' + $match + '/' + auth.uid).val() + 20000) || (!root.child('tournaments/' + $code + '/readyAt/' + $match + '/' + newData.val()).exists() && now >= root.child('tournaments/' + $code + '/readyAt/' + $match + '/' + auth.uid).val() + 90000))"
+            },
             "$other": { ".validate": false }
           }
         },

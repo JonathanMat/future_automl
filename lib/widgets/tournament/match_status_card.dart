@@ -14,13 +14,11 @@ class MatchStatusCard extends StatelessWidget {
     super.key,
     required this.t,
     required this.onPlay,
-    required this.onClaim,
     required this.onDone,
   });
 
   final TournamentProvider t;
   final VoidCallback onPlay;
-  final VoidCallback onClaim;
 
   /// The tournament is over: close it (to make a new one).
   final VoidCallback onDone;
@@ -90,18 +88,13 @@ class MatchStatusCard extends StatelessWidget {
 
     final opp = t.myOpponent;
     final name = opp?.name ?? 'je tegenstander';
-    final waited = t.waitingFor;
-    final claim = t.canClaimWalkover;
-    final left = t.walkoverIn.inSeconds;
     return _Card(
       color: AppColors.lavender,
       icon: Icons.sports_kabaddi_rounded,
       title: '${roundName.toUpperCase()}: tegen $name',
       text: opp != null && !opp.online
-          ? '$name is offline. Komt die niet terug, dan win je over $left s.'
-          : waited.inSeconds > 30
-          ? 'Wacht je op $name? Na ${left}s mag je de winst opeisen.'
-          : 'Jouw duel is klaar. Zoek $name op en speel!',
+          ? '$name is offline. Bevestig je deelname om te wachten.'
+          : 'Bevestig dat je klaar bent om te spelen.',
       child: Column(
         children: [
           const SizedBox(height: 12),
@@ -112,18 +105,38 @@ class MatchStatusCard extends StatelessWidget {
             style: ChunkyButtonStyle.success,
             onPressed: t.inMatch ? null : onPlay,
           ),
-          if (claim) ...[
-            const SizedBox(height: 8),
-            ChunkyButton(
-              label: '$name komt niet: ik win (w.o.)',
+          WalkoverAction(t: t),
+        ],
+      ),
+    );
+  }
+}
+
+class WalkoverAction extends StatelessWidget {
+  const WalkoverAction({super.key, required this.t, this.onClaim});
+
+  final TournamentProvider t;
+  final VoidCallback? onClaim;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!t.waitingForOpponent) return const SizedBox.shrink();
+    final left = (t.walkoverIn.inMilliseconds / 1000).ceil();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: left > 0
+          ? Text(
+              'Je kunt over $left s de winst opeisen.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.body(14, color: AppColors.textSoft),
+            )
+          : ChunkyButton(
+              label: 'Winst opeisen',
               display: false,
               height: 46,
               style: ChunkyButtonStyle.secondary,
-              onPressed: onClaim,
+              onPressed: t.canClaimWalkover ? onClaim ?? t.claimWalkover : null,
             ),
-          ],
-        ],
-      ),
     );
   }
 }
