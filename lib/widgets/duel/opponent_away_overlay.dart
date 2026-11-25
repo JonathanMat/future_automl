@@ -65,7 +65,9 @@ class _OpponentAwayOverlayState extends State<OpponentAwayOverlay> {
       liveRegion: true,
       label: '$title. Nog $seconds seconden, dan win jij.',
       excludeSemantics: true,
-      child: ColoredBox(
+      // On top of the duel, outside its Scaffold: without a Material the
+      // text gets the yellow "missing Material" underlines.
+      child: Material(
         color: AppColors.overlay,
         child: Center(
           child: Padding(

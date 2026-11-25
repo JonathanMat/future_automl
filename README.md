@@ -1,8 +1,8 @@
 # Spell Duel 🧙
 
 Campus Quest – Track D (eigen idee). Twee spelers duelleren met
-handgebaren via een videogesprek. Een zelf getraind Teachable
-Machine-model herkent de spreuk.
+handgebaren via een videogesprek. Een zelf getraind MediaPipe Gesture
+Recognizer-model herkent de spreuk.
 
 | Spreuk | Gebaar | Wint van | Verliest van |
 |---|---|---|---|
@@ -18,20 +18,28 @@ Machine-model herkent de spreuk.
 
 ```
 flutter pub get
-flutter run                                          # echte Firebase + WebRTC
+flutter run --dart-define-from-file=config.json     # echte Firebase + WebRTC (+ TURN en push)
 flutter run --dart-define=BACKEND=mock               # bot als tegenstander, geen Firebase
 flutter run --dart-define=BACKEND=mock --dart-define=CAMERA=off   # mock zonder camera (simulator)
 ```
+
+`config.json` (niet in git) maak je door `config.example.json` te kopiëren en
+in te vullen: de Metered TURN-gegevens (`TURN_URL`, `TURN_USERNAME`,
+`TURN_CREDENTIAL`) en de URL van de push-worker (`PUSH_WORKER_URL`). Zonder
+TURN werkt het videogesprek meestal alleen op hetzelfde wifi-netwerk; zonder
+worker werkt alles behalve de pushmeldingen.
 
 ## Structuur
 
 ```
 lib/
 ├── models/        game_rules, game_state, spell_info, player_profile, duel_summary…
-├── navigators/    app_router (named routes)
-├── providers/     GameProvider (backend + herkenning), ProfileProvider (profiel, vrienden)
-├── screens/       onboarding, home, lobby, duel, result, friends, leaderboard, settings, debug
-├── services/      game/ (mock + Firebase/WebRTC), recognition/, storage/
+├── navigators/    app_router (named routes), room_flow
+├── providers/     game, profile, account, friends, challenge, tournament
+├── screens/       onboarding, home, lobby, duel, result, friends, leaderboard,
+│                  profile, badges, tournament, settings, debug
+├── services/      game/ (mock + Firebase/WebRTC), recognition/, face/, audio/,
+│                  auth/, social/, push/, tournament/, permissions/, storage/
 ├── theme/         kleuren, typografie, thema, transities
 ├── utils/         constanten, extensies, rondetekst
 ├── validators/    kamercode, spelersnaam
@@ -58,14 +66,54 @@ zie [docs/BACKEND.md](docs/BACKEND.md). Het oorspronkelijke concept staat in [do
 
 ## Stack
 
-- Flutter (Android/iOS)
-- Teachable Machine (Image project) → TensorFlow Lite
-- Firebase Realtime Database + Anonymous Auth
-- WebRTC (`flutter_webrtc`) voor het videogesprek
+- Flutter (Android/iOS), state management met `provider`
+- MediaPipe Gesture Recognizer (`mediapipe_vision`) met een eigen getraind
+  model voor de spreuken; MediaPipe Face Landmarker voor de gezichtseffecten
+  in de killcam
+- Firebase Realtime Database + Anonymous Auth (optioneel Google-login)
+- WebRTC (`flutter_webrtc`) voor het videogesprek, met een TURN-server van
+  [Metered](https://www.metered.ca/) zodat het ook over 4G/5G werkt
+- Cloudflare Workers (`cloudflare/push-worker/`) die via Firebase Cloud
+  Messaging pushmeldingen stuurt bij uitdagingen (gratis, geen Blaze-plan)
+- `flutter_soloud` voor geluidseffecten
 
-## TODO (in te vullen)
+## Hoe we de dataset maakten
 
-- Hoe we de dataset maakten
-- Faaltabel (3 situaties)
-- Reflectie (max. 200 woorden)
-- AI-verantwoording
+We hebben de dataset zelf gemaakt door foto's te nemen van elk gebaar.
+Om het model robuust te maken, deden we dat met **meerdere personen** op
+**meerdere plaatsen** (andere achtergronden en belichting), en telkens met
+zowel de **linker- als de rechterhand**.
+
+Per klasse namen we **rond de 1500 foto's**, voor 5 klassen:
+
+| Klasse | Gebaar |
+|---|---|
+| `none` | geen gebaar (lege hand, gewone beweging, achtergrond) |
+| `fire` | open hand naar voren |
+| `ice` | vuist |
+| `lightning` | 2 vingers |
+| `shield` | beide handen omhoog |
+
+## Faalsituaties
+
+| # | Situatie | Wat er gebeurt | Waarom | Wat we eraan deden |
+|---|---|---|---|---|
+| 1 | _recognition met teachable machine_ | _De detectie was niet accuraat_ | _teachable machines was puur image recognition en niet speciek op gestures_ | _We zijn geswitched naar een MediaPipe Gesture Recognizer-model_ |
+| 2 | _[situatie]_ | _[wat er misgaat]_ | _[oorzaak]_ | _[oplossing / aanpak]_ |
+| 3 | _[situatie]_ | _[wat er misgaat]_ | _[oorzaak]_ | _[oplossing / aanpak]_ |
+
+## Reflectie
+
+_Max. 200 woorden per persoon._
+
+### Maarten
+
+_[in te vullen]_
+
+### Jonathan
+
+_[in te vullen]_
+
+## AI-verantwoording
+
+_[in te vullen]_

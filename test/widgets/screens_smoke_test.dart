@@ -283,19 +283,28 @@ void main() {
     final now = DateTime.now();
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: OpponentAwayOverlay(
-            name: 'Lotte',
-            left: true,
-            since: now,
-            deadline: now.add(const Duration(seconds: 30)),
-          ),
+        // Like in the duel: on top of the screen, outside a Scaffold.
+        home: Stack(
+          children: [
+            OpponentAwayOverlay(
+              name: 'Lotte',
+              left: true,
+              since: now,
+              deadline: now.add(const Duration(seconds: 30)),
+            ),
+          ],
         ),
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('Lotte heeft het duel verlaten'), findsOneWidget);
     expect(find.text('30'), findsOneWidget);
+    // No yellow "missing Material" underline under the text.
+    final title = tester.element(find.text('Lotte heeft het duel verlaten'));
+    expect(
+      DefaultTextStyle.of(title).style.decoration,
+      isNot(TextDecoration.underline),
+    );
     expect(tester.takeException(), isNull);
   });
 
