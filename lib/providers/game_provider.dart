@@ -9,6 +9,7 @@ import '../services/game/game_backend.dart';
 import '../services/permissions/camera_permission_service.dart';
 import '../services/recognition/spell_recognizer.dart';
 import '../utils/constants.dart';
+import '../utils/gesture_constants.dart';
 import 'profile_provider.dart';
 
 /// Wraps the [GameBackend] for the UI: the current [GameState], the video
@@ -269,6 +270,7 @@ class GameProvider extends ChangeNotifier {
         won: won,
         rounds: List.unmodifiable(_rounds),
         xpGained: ProfileProvider.xpFor(won: won),
+        startLives: s.config.startLives,
       );
       _lastSummary = summary;
       onGameFinished?.call(summary);
@@ -335,11 +337,26 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Casts as soon as the recognizer reports a stable gesture.
+  /// Casts as soon as the recognizer reports a stable gesture, or, in the
+  /// last moments of the cast window, the best gesture it has.
   Future<void> _castIfStable(SpellPrediction p) async {
     _holdProgress = p.stability;
-    final spell = p.spell;
-    if (!p.isStable || spell == null || !_state.canCast) return;
+    if (!_state.canCast) return;
+    final deadline = _state.castDeadline;
+    final lastChance =
+        deadline != null &&
+        deadline.difference(DateTime.now()) <= GestureConstants.lastChance;
+
+    Spell? spell;
+    if (p.isStable) {
+      spell = p.spell;
+    } else if (lastChance) {
+      // Better a gesture that is almost stable than nothing at all, as
+      // long as it was seen more than once.
+      final seen = (p.frame?.streak ?? 0) >= 2;
+      spell = (seen ? p.candidate : null) ?? p.spell;
+    }
+    if (spell == null) return;
     if (spell == Spell.schild && !_state.myShieldAvailable) return;
     await castSpell(spell, confidence: p.confidence);
   }

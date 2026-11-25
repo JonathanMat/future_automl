@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../models/game_rules.dart';
+import 'fire_fx.dart';
 import 'fire_layers.dart';
 import 'fx_core.dart';
 
@@ -167,6 +168,13 @@ class ProjectileLayer extends FxLayer {
     Offset Function(double) at,
     Offset Function(double) dirAt,
   ) {
+    // All soft glows of the trail go out in one draw call (see fire_fx),
+    // instead of a new gradient per glow every frame.
+    final glows = SpriteBatch.puffs();
+    void glow(Offset p, double radius, Color color, double opacity) =>
+        glows.add(p, radius * 2, 0, color.withValues(alpha: clamp01(opacity)));
+    final sparkles = <(Offset, double, double)>[];
+
     // Things left behind along the path, each living a short while.
     for (final e in _embers) {
       final emitted = charge + e.u * flight;
@@ -181,13 +189,7 @@ class ProjectileLayer extends FxLayer {
           // Smoke for some, rising embers for the rest.
           if (e.size > 3.4) {
             final pos = base + normal * (e.side * 10) + Offset(0, -20 * age);
-            drawGlow(
-              canvas,
-              pos,
-              8 + 20 * f,
-              const Color(0xFF2B2233),
-              opacity: .3 * (1 - f),
-            );
+            glow(pos, 8 + 20 * f, const Color(0xFF2B2233), .3 * (1 - f));
           } else {
             final pos =
                 base +
@@ -204,22 +206,19 @@ class ProjectileLayer extends FxLayer {
           final pos =
               base + normal * (e.side * 18) + -dir * (e.back * age * .4);
           final twinkle = .5 + .5 * sin(age * 30 + e.side * 10);
-          _sparkle(canvas, pos, e.size * 1.8, (1 - f) * twinkle);
-          if (e.size > 3) {
-            drawGlow(canvas, pos, 14, icePalette[2], opacity: .2 * (1 - f));
-          }
+          sparkles.add((pos, e.size * 1.8, (1 - f) * twinkle));
+          if (e.size > 3) glow(pos, 14, icePalette[2], .2 * (1 - f));
         case Spell.bliksem:
           final pos = base + normal * (e.side * 24);
-          drawGlow(canvas, pos, 4, lightningPalette[1], opacity: 1 - f);
+          glow(pos, 4, lightningPalette[1], 1 - f);
         case Spell.schild:
           break;
       }
     }
 
     // A glowing streak right behind the projectile.
-    if (u > 1) return;
     const steps = 16;
-    for (var k = steps; k >= 1; k--) {
+    for (var k = steps; k >= 1 && u <= 1; k--) {
       final uk = u - k * .02;
       if (uk < 0) continue;
       final f = k / steps;
@@ -235,30 +234,17 @@ class ProjectileLayer extends FxLayer {
             core: .2,
           );
         case Spell.ijs:
-          drawGlow(
-            canvas,
-            p,
-            18 * (1 - f * .6),
-            icePalette[2],
-            opacity: .3 * (1 - f),
-          );
+          glow(p, 18 * (1 - f * .6), icePalette[2], .3 * (1 - f));
         case Spell.bliksem:
-          drawGlow(
-            canvas,
-            p,
-            12 * (1 - f * .6),
-            lightningPalette[2],
-            opacity: .4 * (1 - f),
-          );
+          glow(p, 12 * (1 - f * .6), lightningPalette[2], .4 * (1 - f));
         case Spell.schild:
-          drawGlow(
-            canvas,
-            p,
-            20 * (1 - f),
-            shieldPalette[3],
-            opacity: .4 * (1 - f),
-          );
+          glow(p, 20 * (1 - f), shieldPalette[3], .4 * (1 - f));
       }
+    }
+
+    glows.draw(canvas, additive: false);
+    for (final (p, size, opacity) in sparkles) {
+      _sparkle(canvas, p, size, opacity);
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/debug/backend_debug_page.dart';
+import '../screens/badges/badges_screen.dart';
 import '../screens/debug/fx_preview_screen.dart';
 import '../screens/duel/duel_screen.dart';
 import '../screens/friends/friends_screen.dart';
@@ -25,6 +26,7 @@ abstract final class AppRoutes {
   static const settings = '/instellingen';
   static const debug = '/debug';
   static const fxPreview = '/effecten';
+  static const badges = '/badges';
 }
 
 /// Named routes for the whole app.
@@ -53,6 +55,11 @@ class AppRouter {
         return AppTransitions.fadeScale(const DuelScreen(), settings);
       case AppRoutes.result:
         return AppTransitions.reveal(const ResultScreen(), settings);
+      case AppRoutes.badges:
+        return MaterialPageRoute(
+          builder: (_) => const BadgesScreen(),
+          settings: settings,
+        );
       case AppRoutes.settings:
         return MaterialPageRoute(
           builder: (_) => const SettingsScreen(),

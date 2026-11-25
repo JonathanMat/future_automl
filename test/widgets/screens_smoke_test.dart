@@ -10,7 +10,12 @@ import 'package:spell_duel/providers/profile_provider.dart';
 import 'package:spell_duel/services/game/mock_game_backend.dart';
 import 'package:spell_duel/services/storage/local_storage_service.dart';
 import 'package:spell_duel/theme/app_text_styles.dart';
+import 'package:spell_duel/models/badge.dart';
 import 'package:spell_duel/models/spell_prediction.dart';
+import 'package:spell_duel/screens/badges/badges_screen.dart';
+import 'package:spell_duel/widgets/badges/badge_unlock_overlay.dart';
+import 'package:spell_duel/widgets/duel/duel_intro.dart';
+import 'package:provider/provider.dart';
 import 'package:spell_duel/widgets/duel/cast_meter.dart';
 import 'package:spell_duel/widgets/result/duel_stats_card.dart';
 import 'package:spell_duel/widgets/result/result_hero.dart';
@@ -221,5 +226,87 @@ void main() {
       expect(size.height, lessThanOrEqualTo(40), reason: name);
       expect(size.width, lessThanOrEqualTo(240), reason: name);
     }
+  });
+
+  testWidgets('the badges screen shows progress and details', (tester) async {
+    phoneSize(tester);
+    SharedPreferences.setMockInitialValues({});
+    final profile = ProfileProvider(LocalStorageService());
+    await profile.load();
+    await profile.setName('Jo');
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: profile,
+        child: const MaterialApp(home: BadgesScreen()),
+      ),
+    );
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(
+      find.textContaining('van ${allBadges.length} vrijgespeeld'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Eerste overwinning'));
+    await pumpFor(tester, const Duration(milliseconds: 600));
+    expect(find.text('Win je eerste duel.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the badge pop-up plays through several badges', (tester) async {
+    phoneSize(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => showBadgeUnlocks(context, [
+                  badgeById('eerste_winst')!,
+                  badgeById('aartsmagier')!,
+                ]),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await pumpFor(tester, const Duration(seconds: 2));
+    expect(find.text('Eerste overwinning'), findsOneWidget);
+    await tester.tap(find.text('VOLGENDE'));
+    await pumpFor(tester, const Duration(seconds: 2));
+    expect(find.text('Aartsmagiër'), findsOneWidget);
+    await tester.tap(find.text('GEWELDIG!'));
+    await pumpFor(tester, const Duration(milliseconds: 500));
+    expect(find.text('Aartsmagiër'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the VS intro plays and then gets out of the way', (
+    tester,
+  ) async {
+    phoneSize(tester);
+    var done = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DuelIntro(
+            me: const IntroPlayer(
+              name: 'Jonathan',
+              tag: '4821',
+              subtitle: 'LVL 7',
+            ),
+            opponent: const IntroPlayer(name: 'Maarten'),
+            onDone: () => done = true,
+          ),
+        ),
+      ),
+    );
+    await pumpFor(tester, const Duration(seconds: 1));
+    expect(find.text('VS'), findsOneWidget);
+    expect(find.text('JONATHAN'), findsOneWidget);
+    await pumpFor(tester, const Duration(seconds: 2));
+    expect(done, isTrue);
+    expect(tester.takeException(), isNull);
   });
 }

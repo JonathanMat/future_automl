@@ -95,9 +95,8 @@ class FirebaseGameBackend implements GameBackend {
   /// Game number in the room ([GameState.lastResult] belongs to it).
   int _game = 0;
 
-  /// Extra time before the first countdown of a rematch, so both phones
-  /// can switch from the result screen to the duel first.
-  static const _rematchLead = Duration(milliseconds: 1200);
+  /// The game whose first round already got the intro delay.
+  int? _introGame;
   final Set<int> _leaderboardRecorded = {};
 
   // ---------------------------------------------------------------------------
@@ -318,6 +317,7 @@ class FirebaseGameBackend implements GameBackend {
   }
 
   Future<void> _enterRoom(String code, {required bool isHost}) async {
+    _introGame = null;
     _code = code;
     _isHost = isHost;
     _error = null;
@@ -613,7 +613,11 @@ class FirebaseGameBackend implements GameBackend {
         (resultAt != null &&
             _serverNow >= resultAt + config.resultPause.inMilliseconds);
     if (readyForNext && _hostStartedRound <= roundNr) {
-      _startRound(roundNr + 1);
+      // The first round of each game (also a rematch) waits for the intro.
+      final game = _asInt(room['game']);
+      final intro = game != _introGame;
+      _introGame = game;
+      _startRound(roundNr + 1, intro: intro);
       return;
     }
 
@@ -646,12 +650,16 @@ class FirebaseGameBackend implements GameBackend {
     _hostStartingRematch = true;
     final players = _asMap(room['players']) ?? const {};
     final roundNr = _asInt(room['currentRound']) + 1;
+    // The new game opens with the "VS" intro, like the first one.
     final castAt =
         _serverNow +
-        _rematchLead.inMilliseconds +
         config.roundLead.inMilliseconds +
+        config.introLead.inMilliseconds +
         config.countdown.inMilliseconds;
     _hostStartedRound = roundNr;
+    // This write bumps the game number: its first round has the intro
+    // delay now, so _driveGame must not add it again to round 2.
+    _introGame = _asInt(room['game']) + 1;
     _roomRef!
         .update({
           for (final uid in players.keys) ...{
@@ -675,11 +683,12 @@ class FirebaseGameBackend implements GameBackend {
         .whenComplete(() => _hostStartingRematch = false);
   }
 
-  void _startRound(int roundNr) {
+  void _startRound(int roundNr, {bool intro = false}) {
     _hostStartedRound = roundNr;
     final castAt =
         _serverNow +
         config.roundLead.inMilliseconds +
+        (intro ? config.introLead.inMilliseconds : 0) +
         config.countdown.inMilliseconds;
     _roomRef!
         .update({

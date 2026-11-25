@@ -8,6 +8,8 @@ import '../../../models/game_state.dart';
 import '../../../services/audio/sfx_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
+import 'fire_fx.dart';
+import 'freeze_layer.dart';
 import 'fx_builder.dart';
 import 'fx_core.dart';
 import 'fx_plan.dart';
@@ -65,6 +67,24 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
     // Created here, not lazily: creating it in dispose() is not allowed.
     _ticker = createTicker(_tick);
     _check(rebuild: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warmUp());
+  }
+
+  /// Draws the effects' images right after the duel opens (behind the VS
+  /// intro), one after the other, so the first spell doesn't stutter while
+  /// they are made.
+  Future<void> _warmUp() async {
+    if (!mounted) return;
+    final ctx = _measure();
+    if (ctx == null) return;
+    _ctx ??= ctx;
+    await FlameSprites.warmUp();
+    for (final side in FxSide.values) {
+      for (final seed in [FreezeLayer.defaultSeed, FreezeLayer.reflectSeed]) {
+        if (!mounted) return;
+        await FrostArt.prepare(ctx.rect(side).size, ctx.pixelRatio, seed);
+      }
+    }
   }
 
   @override
@@ -161,6 +181,10 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
     final top = rectOf(widget.topKey);
     final bottom = rectOf(widget.bottomKey);
     if (top == null || bottom == null) return null;
+    // A camera squeezed to nothing (tiny screen, keyboard open): there is
+    // nowhere to draw, and the geometry would divide by zero.
+    bool tiny(Rect r) => r.width < 24 || r.height < 24;
+    if (tiny(top) || tiny(bottom)) return null;
     return FxContext(
       size: stack.size,
       top: top,

@@ -42,9 +42,37 @@ void main() {
     });
 
     test('SHIELD_DISTANCE is configurable', () {
-      final hands = [hand('fire', 0.9, 0.3, 0.5), hand('fire', 0.9, 0.6, 0.5)];
-      expect(getGesture(hands).label, 'fire'); // 0.30 apart
-      expect(getGesture(hands, shieldDistance: 0.35).label, 'shield');
+      final hands = [hand('fire', 0.9, 0.1, 0.5), hand('fire', 0.9, 0.8, 0.5)];
+      expect(getGesture(hands).label, 'fire'); // 0.70 apart
+      expect(getGesture(hands, shieldDistance: 0.75).label, 'shield');
+    });
+
+    test(
+      'two hands both seen as fire is shield (the model sees each hand)',
+      () {
+        final g = getGesture([
+          hand('fire', 0.8, 0.30, 0.55),
+          hand('fire', 0.75, 0.62, 0.5),
+        ]);
+        expect(g.label, 'shield');
+      },
+    );
+
+    test('a second hand that does nothing does not make shield', () {
+      expect(
+        getGesture([
+          hand('fire', 0.9, 0.4, 0.5),
+          hand('none', 0.95, 0.5, 0.5),
+        ]).label,
+        'fire',
+      );
+      expect(
+        getGesture([
+          hand('fire', 0.9, 0.4, 0.5),
+          hand('ice', 0.4, 0.5, 0.5), // too unsure to count
+        ]).label,
+        'fire',
+      );
     });
   });
 
@@ -64,7 +92,40 @@ void main() {
       }
       expect(s.add('fire'), 'ice');
       expect(s.add('ice'), 'ice');
-      expect(s.streak, 1);
+      // The blip was ignored: ice kept counting.
+      expect(s.candidate, 'ice');
+      expect(s.streak, 4);
+    });
+
+    test(
+      'losing the gesture for a frame or two does not restart the count',
+      () {
+        final s = GestureStabilizer(stableFrames: 5, maxMisses: 2);
+        s
+          ..add('fire')
+          ..add('fire')
+          ..add('none') // model lost the hand
+          ..add('none')
+          ..add('fire');
+        expect(s.streak, 3);
+        s.add('fire');
+        expect(s.add('fire'), 'fire');
+      },
+    );
+
+    test('a real switch to another gesture still wins after the blips', () {
+      final s = GestureStabilizer(stableFrames: 2, maxMisses: 2);
+      s
+        ..add('fire')
+        ..add('fire');
+      expect(s.stable, 'fire');
+      s
+        ..add('ice')
+        ..add('ice')
+        ..add('ice'); // third disagreeing frame: start counting ice
+      expect(s.candidate, 'ice');
+      s.add('ice');
+      expect(s.stable, 'ice');
     });
 
     test('reset forgets everything', () {
@@ -93,6 +154,25 @@ void main() {
     expect(recognizer.resets, greaterThan(0));
     game.dispose();
   });
+
+  test(
+    'a gesture that never gets fully stable is cast at the last moment',
+    () async {
+      final game = GameProvider(
+        backend: _CameraMock(),
+        recognizer: _NeverStableRecognizer(),
+      );
+      await game.createRoom('Jo');
+      final cast = await game.backend.gameState
+          .firstWhere((s) => s.mySpell != null)
+          .timeout(const Duration(seconds: 10));
+      expect(cast.mySpell, Spell.bliksem);
+      // Cast near the end of the 1.5 s window, not right away.
+      final left = cast.castDeadline!.difference(DateTime.now());
+      expect(left.inMilliseconds, lessThan(500));
+      game.dispose();
+    },
+  );
 }
 
 /// Mock backend with fast rounds that hands out a fake camera frame.
@@ -103,6 +183,7 @@ class _CameraMock extends MockGameBackend {
         random: Random(1),
         botJoinDelay: const Duration(milliseconds: 10),
         config: const GameConfig(
+          introLead: Duration.zero,
           countdown: Duration(milliseconds: 300),
           castWindow: Duration(milliseconds: 1500),
           roundLead: Duration(milliseconds: 10),
@@ -138,6 +219,37 @@ class _ScriptedRecognizer implements SpellRecognizer {
 
   @override
   void reset() => resets++;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// Keeps seeing lightning, but flickers so it never counts as stable.
+class _NeverStableRecognizer implements SpellRecognizer {
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<void> load() async {}
+
+  @override
+  Future<SpellPrediction> predict(Uint8List pngFrame) async =>
+      const SpellPrediction(
+        spell: null,
+        confidence: .8,
+        stability: .6,
+        candidate: Spell.bliksem,
+        frame: GestureFrame(
+          hands: [],
+          rawGesture: 'lightning',
+          rawScore: .8,
+          stableGesture: 'none',
+          streak: 3,
+        ),
+      );
+
+  @override
+  void reset() {}
 
   @override
   Future<void> dispose() async {}

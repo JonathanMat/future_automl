@@ -18,16 +18,36 @@ abstract final class FlameSprites {
 
   /// Soft teardrop flame, white, pointing up. Its hot spot (where it is
   /// placed and turned around) is [flameAnchor].
-  static ui.Image get flame => _flame ??= _bakeFlame();
+  static ui.Image get flame =>
+      _flame ??= _sync(_recordFlame(), _w.toInt(), _h.toInt());
 
   /// Soft round puff, white: glow and smoke.
-  static ui.Image get puff => _puff ??= _bakePuff();
+  static ui.Image get puff => _puff ??= _sync(_recordPuff(), 64, 64);
+
+  /// Draws both sprites in the background before they are needed, so the
+  /// first effect of a duel doesn't stutter while they are made.
+  static Future<void> warmUp() async {
+    _flame ??= await _async(_recordFlame(), _w.toInt(), _h.toInt());
+    _puff ??= await _async(_recordPuff(), 64, 64);
+  }
+
+  static ui.Image _sync(ui.Picture picture, int w, int h) {
+    final image = picture.toImageSync(w, h);
+    picture.dispose();
+    return image;
+  }
+
+  static Future<ui.Image> _async(ui.Picture picture, int w, int h) async {
+    final image = await picture.toImage(w, h);
+    picture.dispose();
+    return image;
+  }
 
   static const _w = 72.0, _h = 168.0;
   static const flameAnchor = Offset(_w / 2, _h * .78);
   static const puffAnchor = Offset(32, 32);
 
-  static ui.Image _bakeFlame() {
+  static ui.Picture _recordFlame() {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final path = Path()
@@ -55,13 +75,10 @@ abstract final class FlameSprites {
         )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(_w.toInt(), _h.toInt());
-    picture.dispose();
-    return image;
+    return recorder.endRecording();
   }
 
-  static ui.Image _bakePuff() {
+  static ui.Picture _recordPuff() {
     final recorder = ui.PictureRecorder();
     Canvas(recorder).drawCircle(
       puffAnchor,
@@ -78,10 +95,7 @@ abstract final class FlameSprites {
           [0, .45, 1],
         ),
     );
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(64, 64);
-    picture.dispose();
-    return image;
+    return recorder.endRecording();
   }
 }
 

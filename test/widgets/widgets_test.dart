@@ -157,6 +157,8 @@ void main() {
       await tester.tap(find.text('DUEL STARTEN'));
       await _pumpFor(tester, const Duration(milliseconds: 1600));
       expect(find.text('MAAK JE GEBAAR'), findsOneWidget);
+      // Let the "VS" intro finish: it covers the screen until then.
+      await _pumpFor(tester, const Duration(seconds: 3));
 
       await tester.tap(find.byTooltip('Emotes'));
       await _pumpFor(tester, const Duration(milliseconds: 300));

@@ -31,7 +31,8 @@ class GestureFrame {
     required this.rawScore,
     required this.stableGesture,
     required this.streak,
-  });
+    String? candidateGesture,
+  }) : candidateGesture = candidateGesture ?? rawGesture;
 
   static const empty = GestureFrame(
     hands: [],
@@ -50,8 +51,13 @@ class GestureFrame {
   /// The gesture after stabilisation: what the game uses.
   final String stableGesture;
 
-  /// How many frames in a row [rawGesture] has been the same.
+  /// How many frames the gesture being counted ([candidateGesture]) has
+  /// been seen, ignoring short blips.
   final int streak;
+
+  /// The gesture being counted towards stable. Can differ from
+  /// [rawGesture] for a frame or two when the model loses the hand.
+  final String candidateGesture;
 
   /// Distance between the two wrists, or null with fewer than two hands.
   double? get wristDistance =>

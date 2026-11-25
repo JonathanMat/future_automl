@@ -12,6 +12,7 @@ import 'package:spell_duel/services/storage/local_storage_service.dart';
 
 void main() {
   const fast = GameConfig(
+    introLead: Duration.zero,
     countdown: Duration(milliseconds: 60),
     castWindow: Duration(milliseconds: 300),
     resultPause: Duration(milliseconds: 60),

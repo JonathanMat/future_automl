@@ -6,6 +6,7 @@ import 'package:spell_duel/services/game/mock_game_backend.dart';
 
 void main() {
   const fast = GameConfig(
+    introLead: Duration.zero,
     countdown: Duration(milliseconds: 60),
     castWindow: Duration(milliseconds: 300),
     resultPause: Duration(milliseconds: 60),
@@ -122,5 +123,29 @@ void main() {
     }
     expect(Emote.fromWire('nope'), isNull);
     expect(Emote.fromWire(null), isNull);
+  });
+
+  test('only the first round of a game waits for the VS intro', () async {
+    final backend = MockGameBackend(
+      useCamera: false,
+      botJoinDelay: Duration.zero,
+      config: const GameConfig(
+        countdown: Duration(milliseconds: 300),
+        castWindow: Duration(milliseconds: 100),
+        resultPause: Duration(milliseconds: 50),
+        roundLead: Duration(milliseconds: 20),
+        introLead: Duration(seconds: 2),
+      ),
+    );
+    await backend.joinRoom('abcd', playerName: 'Jo');
+    final first = backend.state.castAt!.difference(DateTime.now());
+    expect(first, greaterThan(const Duration(milliseconds: 2200)));
+
+    final second = await backend.gameState
+        .firstWhere((s) => s.round == 2)
+        .timeout(const Duration(seconds: 10));
+    final wait = second.castAt!.difference(DateTime.now());
+    expect(wait, lessThan(const Duration(milliseconds: 400)));
+    await backend.dispose();
   });
 }

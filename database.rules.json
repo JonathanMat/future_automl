@@ -75,6 +75,12 @@
           "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "streak": { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "lastDuel": { ".validate": "newData.hasChildren(['opponentName', 'won', 'playedAt'])" },
+          "stats": {
+            "$key": { ".validate": "$key.matches(/^[a-zA-Z_]{1,24}$/) && newData.isNumber() && newData.val() >= 0" }
+          },
+          "badges": {
+            "$id": { ".validate": "$id.matches(/^[a-z_]{1,32}$/) && newData.isNumber() && newData.val() >= 0" }
+          },
           "$other": { ".validate": false }
         },
         "friendCode": {

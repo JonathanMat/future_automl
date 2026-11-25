@@ -104,7 +104,7 @@ class MockGameBackend implements GameBackend {
       ),
     );
     if (mirrorCameraAsOpponent) _remoteCtl.add(_localStream);
-    _startRound();
+    _startRound(intro: true);
   }
 
   PlayerState _player(String uid, String name) => PlayerState(
@@ -115,8 +115,12 @@ class MockGameBackend implements GameBackend {
     online: true,
   );
 
-  void _startRound() {
-    final castAt = DateTime.now().add(config.roundLead).add(config.countdown);
+  /// [intro]: first round of a game, wait for the "VS" intro.
+  void _startRound({bool intro = false}) {
+    final castAt = DateTime.now()
+        .add(config.roundLead)
+        .add(intro ? config.introLead : Duration.zero)
+        .add(config.countdown);
     _botSpell = null;
     _emit(
       _state.copyWith(
@@ -292,7 +296,7 @@ class MockGameBackend implements GameBackend {
         callStatus: _state.callStatus,
       ),
     );
-    _startRound();
+    _startRound(intro: true);
   }
 
   @override

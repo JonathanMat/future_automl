@@ -129,7 +129,12 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
     backend: widget.backend,
     recognizer: widget.recognizer,
     cameraPermission: widget.cameraPermission,
-    onGameFinished: widget.profile.recordGame,
+    onGameFinished: (summary) => widget.profile.recordGame(
+      summary,
+      vsFriend:
+          summary.opponentUid != null &&
+          _friends.isFriend(summary.opponentUid!),
+    ),
   );
   late final ChallengeProvider _challenges = ChallengeProvider(
     backend: _friendsBackend,

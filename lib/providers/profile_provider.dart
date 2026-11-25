@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/badge.dart';
 import '../models/duel_summary.dart';
 import '../models/friend_record.dart';
 import '../models/player_profile.dart';
@@ -75,14 +76,36 @@ class ProfileProvider extends ChangeNotifier {
       won ? AppConstants.xpForWin : AppConstants.xpForLoss;
 
   /// Adds a finished game to the profile and the recent opponents.
-  Future<void> recordGame(DuelSummary summary, {DateTime? at}) async {
+  List<BadgeDef> _newBadges = const [];
+
+  /// Badges unlocked by the last duel(s) that haven't been shown yet.
+  List<BadgeDef> get newBadges => _newBadges;
+
+  /// Returns the new badges and forgets them, so the pop-up shows once.
+  List<BadgeDef> takeNewBadges() {
+    final list = _newBadges;
+    _newBadges = const [];
+    return list;
+  }
+
+  Future<void> recordGame(
+    DuelSummary summary, {
+    DateTime? at,
+    bool vsFriend = false,
+  }) async {
     final now = at ?? DateTime.now();
     final won = summary.won;
+    final streak = won ? _profile.streak + 1 : 0;
     _profile = _profile.copyWith(
       xp: _profile.xp + summary.xpGained,
       wins: _profile.wins + (won ? 1 : 0),
       losses: _profile.losses + (won ? 0 : 1),
-      streak: won ? _profile.streak + 1 : 0,
+      streak: streak,
+      stats: _profile.stats.withDuel(
+        summary,
+        streakAfter: streak,
+        vsFriend: vsFriend,
+      ),
       lastDuel: LastDuel(
         opponentName: summary.opponentName,
         won: won,
@@ -114,6 +137,21 @@ class ProfileProvider extends ChangeNotifier {
             );
     _friends = [updated, ..._friends.where((f) => !same(f))];
 
+    // Badges reached with this duel (or earlier, for older profiles).
+    final fresh = [
+      for (final b in allBadges)
+        if (!_profile.hasBadge(b.id) && b.reached(_profile)) b,
+    ];
+    if (fresh.isNotEmpty) {
+      _profile = _profile.copyWith(
+        badges: {
+          ..._profile.badges,
+          for (final b in fresh) b.id: now.millisecondsSinceEpoch,
+        },
+      );
+      _newBadges = [..._newBadges, ...fresh];
+    }
+
     notifyListeners();
     await _storage.saveProfile(_profile);
     await _storage.saveFriends(_friends);
@@ -129,6 +167,8 @@ class ProfileProvider extends ChangeNotifier {
       losses: progress.losses,
       streak: progress.streak,
       lastDuel: progress.lastDuel,
+      stats: progress.stats,
+      badges: progress.badges,
     );
     notifyListeners();
     await _storage.saveProfile(_profile);
