@@ -126,6 +126,10 @@ PlannedFx? buildSpellFx(FxPlan plan) {
             ExplosionLayer(start: hit, at: (c) => c.center(l), side: l),
           ],
           impacts: [FxImpact(time: hit, side: l, damage: true, shake: 14)],
+          sounds: const [
+            FxCue(0, SfxSound.fireCast),
+            FxCue(hit, SfxSound.fireExplode),
+          ],
         ),
         [FxTint(kind: FxTintKind.heat, side: l, start: hit, end: hit + 1.5)],
       );
@@ -154,6 +158,11 @@ PlannedFx? buildSpellFx(FxPlan plan) {
             FxImpact(time: hit, side: l, damage: true, shake: 7),
             FxImpact(time: hit + freeze.shatterStart, side: l, shake: 9),
           ],
+          sounds: [
+            const FxCue(0, SfxSound.iceCast),
+            const FxCue(hit, SfxSound.iceFreeze),
+            FxCue(hit + freeze.shatterStart, SfxSound.iceShatter),
+          ],
         ),
         [
           FxTint(
@@ -172,6 +181,8 @@ PlannedFx? buildSpellFx(FxPlan plan) {
         SpellFx(
           layers: [LightningStrikeLayer(start: 0, side: l, strikeAt: strike)],
           impacts: [FxImpact(time: strike, side: l, damage: true, shake: 16)],
+          // The sound cracks 0.3 s in.
+          sounds: const [FxCue(strike - .3, SfxSound.lightningStrike)],
         ),
         [
           FxTint(
@@ -205,6 +216,11 @@ PlannedFx? buildSpellFx(FxPlan plan) {
             ),
           ],
           impacts: [FxImpact(time: strike, side: l, damage: true, shake: 18)],
+          sounds: const [
+            FxCue(0, SfxSound.shieldUp, volume: .8),
+            FxCue(strike - .3, SfxSound.lightningStrike),
+            FxCue(strike, SfxSound.shieldBreak, volume: .85),
+          ],
         ),
         [
           FxTint(
@@ -259,6 +275,15 @@ PlannedFx? buildSpellFx(FxPlan plan) {
           seed: 12,
         ),
       ];
+      final cast = reflected == Spell.ijs
+          ? SfxSound.iceCast
+          : SfxSound.fireCast;
+      final sounds = <FxCue>[
+        const FxCue(0, SfxSound.shieldUp, volume: .8),
+        FxCue(0, cast, volume: .8),
+        const FxCue(block, SfxSound.shieldBlock),
+        FxCue(block, cast, volume: .7),
+      ];
       final tints = <FxTint>[];
       if (reflected == Spell.ijs) {
         final freeze = FreezeLayer(
@@ -269,6 +294,10 @@ PlannedFx? buildSpellFx(FxPlan plan) {
           seed: 13,
         );
         layers.add(freeze);
+        sounds.addAll([
+          const FxCue(back, SfxSound.iceFreeze),
+          FxCue(back + freeze.shatterStart, SfxSound.iceShatter),
+        ]);
         tints.add(
           FxTint(
             kind: FxTintKind.ice,
@@ -283,6 +312,7 @@ PlannedFx? buildSpellFx(FxPlan plan) {
           FlameCurtainLayer(start: back + .05, side: l, duration: 1.4),
           ExplosionLayer(start: back, at: (c) => c.center(l), side: l),
         ]);
+        sounds.add(const FxCue(back, SfxSound.fireExplode));
         tints.add(
           FxTint(kind: FxTintKind.heat, side: l, start: back, end: back + 1.4),
         );
@@ -294,6 +324,7 @@ PlannedFx? buildSpellFx(FxPlan plan) {
             FxImpact(time: block, side: w, shake: 6),
             FxImpact(time: back, side: l, damage: true, shake: 13),
           ],
+          sounds: sounds,
         ),
         tints,
       );
@@ -318,6 +349,11 @@ PlannedFx? buildSpellFx(FxPlan plan) {
             ),
           ],
           impacts: [FxImpact(time: hit, side: l, damage: true, shake: 11)],
+          sounds: const [
+            FxCue(0, SfxSound.shieldUp, volume: .7),
+            // Its hit lands 0.32 s after the pulse.
+            FxCue(pulse, SfxSound.shieldBash),
+          ],
         ),
       );
 
@@ -399,6 +435,20 @@ PlannedFx? buildSpellFx(FxPlan plan) {
               FxImpact(time: meet + dt, shake: shake),
             const FxImpact(time: burst, shake: 16),
           ],
+          sounds: [
+            FxCue(0, switch (spell) {
+              Spell.vuur => SfxSound.fireCast,
+              Spell.ijs => SfxSound.iceCast,
+              _ => SfxSound.lightningZap,
+            }),
+            const FxCue(meet, SfxSound.clashStruggle),
+            switch (spell) {
+              Spell.vuur => const FxCue(burst, SfxSound.fireExplode),
+              Spell.ijs => const FxCue(burst, SfxSound.iceShatter),
+              // Cracks 0.3 s in.
+              _ => const FxCue(burst - .3, SfxSound.lightningStrike),
+            },
+          ],
         ),
       );
 
@@ -410,6 +460,7 @@ PlannedFx? buildSpellFx(FxPlan plan) {
               ShieldDomeLayer(start: 0, duration: 1.5, side: side, pulseAt: .5),
           ],
           impacts: [const FxImpact(time: .5, shake: 4)],
+          sounds: const [FxCue(0, SfxSound.shieldDouble)],
         ),
       );
   }

@@ -53,3 +53,24 @@ class VoiceChatCard extends StatelessWidget {
               'volume werkt gewoon en kan helemaal uit.',
   );
 }
+
+/// "Geluidseffecten": the sounds of the spell effects.
+class SoundEffectsCard extends StatelessWidget {
+  const SoundEffectsCard({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => ToggleCard(
+    icon: value ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+    title: 'Geluidseffecten',
+    subtitle: 'Geluid bij spreuken en emotes',
+    value: value,
+    onChanged: onChanged,
+  );
+}

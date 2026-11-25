@@ -144,8 +144,22 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Emotes from the opponent, as they arrive.
+  Stream<Emote> get opponentEmotes => backend.opponentEmotes;
+
+  /// Sends [emote] to the opponent. Failing is harmless: it just doesn't
+  /// show up on the other phone.
+  Future<void> sendEmote(Emote emote) async {
+    try {
+      await backend.sendEmote(emote);
+    } catch (e) {
+      debugPrint('sendEmote: $e');
+    }
+  }
+
+  /// Asks for a rematch. The stats of the finished game stay until the
+  /// new game really starts (see [_onState]).
   Future<void> playAgain() async {
-    _resetGameStats();
     try {
       await backend.playAgain();
     } on GameBackendException catch (e) {

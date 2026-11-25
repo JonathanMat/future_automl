@@ -66,6 +66,12 @@ class LocalStorageService {
   Future<void> saveVoiceChat(bool value) async =>
       (await _p).setBool(AppConstants.voiceChatKey, value);
 
+  Future<bool> loadSoundEffects() async =>
+      (await _p).getBool(AppConstants.soundEffectsKey) ?? true;
+
+  Future<void> saveSoundEffects(bool value) async =>
+      (await _p).setBool(AppConstants.soundEffectsKey, value);
+
   Future<void> clearStats() async {
     final p = await _p;
     await p.remove(AppConstants.friendsKey);

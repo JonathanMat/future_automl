@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../models/game_rules.dart';
-import '../../models/spell_info.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../generic/app_card.dart';
 import '../generic/app_logo.dart';
-import '../generic/spell_orb.dart';
+import '../generic/spell_cycle_diagram.dart';
 
-/// Title card with the four spells and a one-line rules summary.
+/// Title card: logo, name and what the game is.
 class SpellHeroCard extends StatelessWidget {
-  const SpellHeroCard({super.key, this.config = const GameConfig()});
-
-  final GameConfig config;
+  const SpellHeroCard({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -48,36 +45,28 @@ class SpellHeroCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 22),
-          Row(
-            children: [
-              for (final spell in Spell.values)
-                Expanded(
-                  child: Column(
-                    children: [
-                      SpellOrb(spell: spell),
-                      const SizedBox(height: 8),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          spell.label,
-                          style: AppTextStyles.body(
-                            12,
-                            weight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            rulesSummary(config),
-            textAlign: TextAlign.center,
-            style: AppTextStyles.caption(),
-          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Zo werkt het": the spells with what beats what, under the buttons on
+/// home so starting a duel stays at the top.
+class SpellRulesCard extends StatelessWidget {
+  const SpellRulesCard({super.key, this.config = const GameConfig()});
+
+  final GameConfig config;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
+      child: Column(
+        children: [
+          Text('ZO WERKT HET', style: AppTextStyles.overline()),
+          const SizedBox(height: 10),
+          SpellCycleDiagram(config: config),
         ],
       ),
     );

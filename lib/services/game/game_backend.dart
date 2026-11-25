@@ -2,9 +2,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../models/emote.dart';
 import '../../models/game_rules.dart';
 import '../../models/game_state.dart';
 
+export '../../models/emote.dart';
 export '../../models/game_rules.dart';
 export '../../models/game_state.dart';
 
@@ -51,8 +53,17 @@ abstract class GameBackend {
   /// (too early, too late, already cast, or no shield left).
   Future<void> submitSpell(Spell spell);
 
-  /// After [GamePhase.finished]: start a new game in the same room with
-  /// the same video call.
+  /// Sends an emote to the opponent. Works any time both players are in
+  /// the room.
+  Future<void> sendEmote(Emote emote);
+
+  /// Emotes from the opponent, as they arrive.
+  Stream<Emote> get opponentEmotes;
+
+  /// After [GamePhase.finished]: ask for a new game in the same room with
+  /// the same video call. It starts (a fresh countdown) once both players
+  /// asked; see [GameState.iWantRematch] and
+  /// [GameState.opponentWantsRematch].
   Future<void> playAgain();
 
   /// Top players by wins.

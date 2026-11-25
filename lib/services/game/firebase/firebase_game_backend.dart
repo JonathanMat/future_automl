@@ -28,6 +28,8 @@ import 'webrtc_call.dart';
 ///     commits/{uid}: {hash, at: <server ms>}
 ///     reveals/{uid}: {spell, salt}
 ///     result: {winnerUid?, reason, at, spells/{uid}: "vuur"}
+///   rematch/{uid}: true                        (after a game, see playAgain)
+///   emotes/{uid}: {e: "haha", at: <server ms>}  (last emote per player)
 ///   signaling/...                              (see WebRtcCall)
 /// leaderboard/{uid}: {name, tag, wins, losses}
 /// ```
@@ -61,6 +63,14 @@ class FirebaseGameBackend implements GameBackend {
   late GameState _state = GameState(config: config);
   final _stateCtl = StreamController<GameState>.broadcast();
   final _remoteCtl = StreamController<MediaStream?>.broadcast();
+  final _emoteCtl = StreamController<Emote>.broadcast();
+
+  /// Server time of the last opponent emote shown, so each one shows once.
+  int _lastEmoteAt = 0;
+
+  /// Emotes older than this when they arrive are not shown (e.g. the last
+  /// one in the room, when you join).
+  static const _emoteMaxAge = Duration(seconds: 5);
 
   String? _uid;
   String? _code;
@@ -80,6 +90,14 @@ class FirebaseGameBackend implements GameBackend {
   int _hostStartedRound = 0;
   int _hostResolvedRound = 0;
   bool _hostStartingGame = false;
+  bool _hostStartingRematch = false;
+
+  /// Game number in the room ([GameState.lastResult] belongs to it).
+  int _game = 0;
+
+  /// Extra time before the first countdown of a rematch, so both phones
+  /// can switch from the result screen to the duel first.
+  static const _rematchLead = Duration(milliseconds: 1200);
   final Set<int> _leaderboardRecorded = {};
 
   // ---------------------------------------------------------------------------
@@ -180,19 +198,38 @@ class FirebaseGameBackend implements GameBackend {
   }
 
   @override
+  Stream<Emote> get opponentEmotes => _emoteCtl.stream;
+
+  @override
+  Future<void> sendEmote(Emote emote) async {
+    final ref = _roomRef;
+    final uid = _uid;
+    if (ref == null || uid == null) return;
+    // One slot per player: each emote overwrites the previous one.
+    await ref.child('emotes/$uid').set({
+      'e': emote.wire,
+      'at': ServerValue.timestamp,
+    });
+  }
+
+  void _onEmote(DataSnapshot snap) {
+    if (snap.key == null || snap.key == _uid) return;
+    final v = _asMap(snap.value);
+    final emote = Emote.fromWire(v?['e']);
+    final at = _asInt(v?['at']);
+    if (emote == null || at <= _lastEmoteAt) return;
+    _lastEmoteAt = at;
+    if (_serverNow - at > _emoteMaxAge.inMilliseconds) return;
+    if (!_emoteCtl.isClosed) _emoteCtl.add(emote);
+  }
+
+  /// Asks for a rematch. The host starts it once both asked (see
+  /// [_startRematchIfAgreed]).
+  @override
   Future<void> playAgain() async {
     final room = _room;
     if (room == null || room['status'] != 'finished') return;
-    final players = _asMap(room['players']) ?? const {};
-    await _roomRef!.update({
-      for (final uid in players.keys) ...{
-        'players/$uid/lives': config.startLives,
-        'players/$uid/shieldsUsed': 0,
-      },
-      'status': 'playing',
-      'winnerUid': null,
-      'game': ServerValue.increment(1),
-    });
+    await _roomRef!.child('rematch/$_uid').set(true);
   }
 
   @override
@@ -251,6 +288,7 @@ class FirebaseGameBackend implements GameBackend {
     await leaveRoom();
     await _stateCtl.close();
     await _remoteCtl.close();
+    await _emoteCtl.close();
   }
 
   // ---------------------------------------------------------------------------
@@ -338,6 +376,11 @@ class FirebaseGameBackend implements GameBackend {
       ),
     );
 
+    final emotes = ref.child('emotes');
+    _subs
+      ..add(emotes.onChildAdded.listen((e) => _onEmote(e.snapshot)))
+      ..add(emotes.onChildChanged.listen((e) => _onEmote(e.snapshot)));
+
     _ticker = Timer.periodic(
       const Duration(milliseconds: 100),
       (_) => _recompute(),
@@ -369,7 +412,10 @@ class FirebaseGameBackend implements GameBackend {
     _hostStartedRound = 0;
     _hostResolvedRound = 0;
     _hostStartingGame = false;
+    _hostStartingRematch = false;
+    _game = 0;
     _leaderboardRecorded.clear();
+    _lastEmoteAt = 0;
     _emit(GameState(config: config));
   }
 
@@ -419,6 +465,12 @@ class FirebaseGameBackend implements GameBackend {
     final roundNr = _asInt(room['currentRound']);
     final round = _asMap(_asMap(room['rounds'])?['$roundNr']);
     final castAtServer = round == null ? null : _asInt(round['castAt']);
+    final rematch = _asMap(room['rematch']) ?? const {};
+
+    // A new game in this room: forget the last result of the old one.
+    final game = _asInt(room['game']);
+    final sameGame = game == _game;
+    _game = game;
     final castAt = castAtServer == null ? null : _toLocal(castAtServer);
     final resultMap = _asMap(round?['result']);
 
@@ -446,7 +498,7 @@ class FirebaseGameBackend implements GameBackend {
       error ??= '${opponent.name} is offline.';
     }
 
-    RoundResult? lastResult = _state.lastResult;
+    RoundResult? lastResult = sameGame ? _state.lastResult : null;
     // Show the result of the last finished round, also after the game ended.
     final resultRoundNr = resultMap != null ? roundNr : roundNr - 1;
     final resultSource =
@@ -481,6 +533,11 @@ class FirebaseGameBackend implements GameBackend {
       mySpell: _secrets[roundNr]?.spell,
       lastResult: lastResult,
       iWon: status == 'finished' ? room['winnerUid'] == _uid : null,
+      iWantRematch: status == 'finished' && rematch[_uid] == true,
+      opponentWantsRematch:
+          status == 'finished' &&
+          opponentUid != null &&
+          rematch[opponentUid] == true,
       callStatus: _callStatus,
       error: error,
     );
@@ -539,6 +596,10 @@ class FirebaseGameBackend implements GameBackend {
       }
       return;
     }
+    if (status == 'finished' && guestUid != null) {
+      _startRematchIfAgreed(room, guestUid);
+      return;
+    }
     if (status != 'playing' || guestUid == null) return;
 
     final roundNr = _asInt(room['currentRound']);
@@ -567,6 +628,51 @@ class FirebaseGameBackend implements GameBackend {
     if (reveals.length >= 2 || _serverNow > deadline) {
       _resolve(room, roundNr, round, guestUid);
     }
+  }
+
+  /// Host only: once both players asked for a rematch, reset the lives and
+  /// start the first round of the new game in the same write.
+  ///
+  /// Starting the round right away matters: a room that is "playing" while
+  /// its current round still holds the old game's final result would show
+  /// (and replay the effect of) that result on both phones.
+  void _startRematchIfAgreed(Map<Object?, Object?> room, String guestUid) {
+    final rematch = _asMap(room['rematch']) ?? const {};
+    if (_hostStartingRematch ||
+        rematch[_uid] != true ||
+        rematch[guestUid] != true) {
+      return;
+    }
+    _hostStartingRematch = true;
+    final players = _asMap(room['players']) ?? const {};
+    final roundNr = _asInt(room['currentRound']) + 1;
+    final castAt =
+        _serverNow +
+        _rematchLead.inMilliseconds +
+        config.roundLead.inMilliseconds +
+        config.countdown.inMilliseconds;
+    _hostStartedRound = roundNr;
+    _roomRef!
+        .update({
+          for (final uid in players.keys) ...{
+            'players/$uid/lives': config.startLives,
+            'players/$uid/shieldsUsed': 0,
+          },
+          'status': 'playing',
+          'winnerUid': null,
+          'game': ServerValue.increment(1),
+          'rematch': null,
+          'currentRound': roundNr,
+          // Drop the old game's rounds: only the new first round is left.
+          'rounds': {
+            '$roundNr': {'castAt': castAt},
+          },
+        })
+        .catchError((Object e) {
+          _hostStartedRound = roundNr - 1;
+          debugPrint('rematch failed: $e');
+        })
+        .whenComplete(() => _hostStartingRematch = false);
   }
 
   void _startRound(int roundNr) {

@@ -9,6 +9,7 @@ import 'providers/challenge_provider.dart';
 import 'providers/friends_provider.dart';
 import 'providers/game_provider.dart';
 import 'providers/profile_provider.dart';
+import 'services/audio/sfx_service.dart';
 import 'services/auth/account_service.dart';
 import 'services/auth/firebase_account_service.dart';
 import 'services/auth/mock_account_service.dart';
@@ -64,6 +65,8 @@ Future<void> main() async {
 
   final profile = ProfileProvider(LocalStorageService());
   await profile.load();
+  // Loads in the background; effects are silent until it is done.
+  SfxService.instance.init();
 
   final isFirebase = _backendKind == 'firebase';
   runApp(
@@ -143,15 +146,18 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
   @override
   void initState() {
     super.initState();
-    _applyVoiceChat();
-    widget.profile.addListener(_applyVoiceChat);
+    _applySettings();
+    widget.profile.addListener(_applySettings);
   }
 
-  void _applyVoiceChat() => widget.backend.voiceChat = widget.profile.voiceChat;
+  void _applySettings() {
+    widget.backend.voiceChat = widget.profile.voiceChat;
+    SfxService.instance.enabled = widget.profile.soundEffects;
+  }
 
   @override
   void dispose() {
-    widget.profile.removeListener(_applyVoiceChat);
+    widget.profile.removeListener(_applySettings);
     _account.dispose();
     _challenges.dispose();
     _game.dispose();

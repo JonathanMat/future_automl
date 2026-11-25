@@ -8,14 +8,16 @@ import 'game_backend.dart';
 
 /// Offline backend for building and testing the UI on one phone.
 ///
-/// The opponent is a bot that joins after [botJoinDelay] and casts a random
-/// spell every round. No Firebase or second phone needed.
+/// The opponent is a bot that joins after [botJoinDelay], casts a random
+/// spell every round and sometimes sends an emote (after a round, or back
+/// when you send one). No Firebase or second phone needed.
 class MockGameBackend implements GameBackend {
   MockGameBackend({
     this.config = const GameConfig(),
     this.useCamera = true,
     this.mirrorCameraAsOpponent = true,
     this.botJoinDelay = const Duration(seconds: 2),
+    this.botEmotes = true,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -32,6 +34,9 @@ class MockGameBackend implements GameBackend {
   final bool mirrorCameraAsOpponent;
 
   final Duration botJoinDelay;
+
+  /// Let the bot send emotes. Turn off in tests that count them.
+  final bool botEmotes;
   final Random _random;
 
   static const _myUid = 'mock-me';
@@ -40,6 +45,7 @@ class MockGameBackend implements GameBackend {
   late GameState _state = GameState(config: config);
   final _stateCtl = StreamController<GameState>.broadcast();
   final _remoteCtl = StreamController<MediaStream?>.broadcast();
+  final _emoteCtl = StreamController<Emote>.broadcast();
   MediaStream? _localStream;
   Timer? _ticker;
   final List<Timer> _timers = [];
@@ -197,6 +203,56 @@ class MockGameBackend implements GameBackend {
       ),
     );
     if (!finished) _later(config.resultPause, _startRound);
+
+    // Now and then the bot reacts to the round.
+    final Emote? reaction;
+    if (finished) {
+      reaction = _random.nextBool() ? Emote.gg : Emote.goedGespeeld;
+    } else if (r.winner == null || _random.nextDouble() > .35) {
+      reaction = null;
+    } else if (r.winner == Side.guest) {
+      reaction = Emote.haha;
+    } else {
+      reaction = _random.nextBool() ? Emote.boos : Emote.huilen;
+    }
+    if (reaction != null) {
+      _botEmote(reaction, const Duration(milliseconds: 1400));
+    }
+    // Sometimes the bot asks for a rematch itself.
+    if (finished && _random.nextBool()) {
+      _later(const Duration(milliseconds: 2500), () {
+        if (_state.phase == GamePhase.finished) {
+          _emit(_state.copyWith(opponentWantsRematch: true));
+        }
+      });
+    }
+  }
+
+  void _botEmote(Emote emote, Duration delay) {
+    if (!botEmotes) return;
+    _later(delay, () {
+      if (_state.opponent != null && !_emoteCtl.isClosed) {
+        _emoteCtl.add(emote);
+      }
+    });
+  }
+
+  @override
+  Stream<Emote> get opponentEmotes => _emoteCtl.stream;
+
+  @override
+  Future<void> sendEmote(Emote emote) async {
+    if (_state.opponent == null) return;
+    // The bot answers half of the time.
+    if (_random.nextBool()) return;
+    final answer = switch (emote) {
+      Emote.hallo => Emote.hallo,
+      Emote.gg || Emote.goedGespeeld => Emote.gg,
+      Emote.haha => Emote.boos,
+      Emote.boos => Emote.haha,
+      Emote.huilen => Emote.haha,
+    };
+    _botEmote(answer, Duration(milliseconds: 900 + _random.nextInt(800)));
   }
 
   @override
@@ -210,8 +266,20 @@ class MockGameBackend implements GameBackend {
     _emit(_state.copyWith(mySpell: spell));
   }
 
+  /// The bot always accepts, after a moment (at once when it asked first).
   @override
   Future<void> playAgain() async {
+    if (_state.phase != GamePhase.finished || _state.iWantRematch) return;
+    _emit(_state.copyWith(iWantRematch: true));
+    _later(
+      _state.opponentWantsRematch
+          ? Duration.zero
+          : const Duration(milliseconds: 900),
+      _startRematch,
+    );
+  }
+
+  void _startRematch() {
     if (_state.phase != GamePhase.finished) return;
     _emit(
       GameState(
@@ -279,6 +347,7 @@ class MockGameBackend implements GameBackend {
     await leaveRoom();
     await _stateCtl.close();
     await _remoteCtl.close();
+    await _emoteCtl.close();
   }
 
   Future<void> _openCamera() async {

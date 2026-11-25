@@ -149,6 +149,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: profile.setVoiceChat,
             ),
             const SizedBox(height: 14),
+            SoundEffectsCard(
+              value: profile.soundEffects,
+              onChanged: profile.setSoundEffects,
+            ),
+            const SizedBox(height: 14),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

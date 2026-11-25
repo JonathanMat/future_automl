@@ -52,7 +52,7 @@ class AppRouter {
       case AppRoutes.duel:
         return AppTransitions.fadeScale(const DuelScreen(), settings);
       case AppRoutes.result:
-        return AppTransitions.fadeScale(const ResultScreen(), settings);
+        return AppTransitions.reveal(const ResultScreen(), settings);
       case AppRoutes.settings:
         return MaterialPageRoute(
           builder: (_) => const SettingsScreen(),

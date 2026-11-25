@@ -32,6 +32,10 @@ backend.remoteStream;  // opponent    -> RTCVideoRenderer.srcObject
 // Model: ~5x per second, only while s.canCast
 final png = await backend.captureLocalFrame(); // run TFLite on this
 await backend.submitSpell(Spell.vuur);         // once >90% for 0.5 s
+
+// Emotes, any time both players are in the room
+await backend.sendEmote(Emote.gg);
+backend.opponentEmotes.listen((e) { /* show it + play its sound */ });
 ```
 
 - **Do not open the camera with the `camera` plugin.** The video call owns
@@ -46,6 +50,10 @@ await backend.submitSpell(Spell.vuur);         // once >90% for 0.5 s
 - `s.canCast`, `s.myShieldAvailable`, `s.lastResult`, `s.iWon`, `s.error`.
 - `submitSpell` throws `GameBackendException` when it's too early/late, you
   already cast, or the shield is used up.
+- Emotes live in `rooms/{code}/emotes/{uid}` (`{e, at}`, one slot per
+  player, overwritten each time). Emotes older than 5 s when they arrive are
+  not shown. After changing `database.rules.json`, deploy it:
+  `firebase deploy --only database`.
 - Firebase is the default: `flutter run`. With the mock:
   `flutter run --dart-define=BACKEND=mock`.
 

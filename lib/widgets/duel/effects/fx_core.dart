@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../services/audio/sfx_service.dart';
 import 'fx_plan.dart';
 
+export '../../../services/audio/sfx_service.dart' show SfxSound;
 export 'fx_plan.dart' show FxSide;
 
 /// Where the two cameras are, in the effect layer's coordinates.
@@ -84,12 +86,28 @@ class FxImpact {
   final double shake;
 }
 
-/// A complete effect: layers plus the impacts on its timeline.
+/// A sound effect that starts at [time] on the effect's timeline.
+class FxCue {
+  const FxCue(this.time, this.sound, {this.volume = 1});
+
+  final double time;
+  final SfxSound sound;
+  final double volume;
+}
+
+/// A complete effect: layers plus the impacts and sounds on its timeline.
 class SpellFx {
-  SpellFx({required this.layers, this.impacts = const []});
+  SpellFx({
+    required this.layers,
+    this.impacts = const [],
+    this.sounds = const [],
+  });
 
   final List<FxLayer> layers;
   final List<FxImpact> impacts;
+
+  /// Sounds can ring on after [duration]; they don't keep the effect alive.
+  final List<FxCue> sounds;
 
   /// Damage text stays this long after an impact.
   static const damageTime = 1.3;

@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../../models/game_state.dart';
+import '../../../services/audio/sfx_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_text_styles.dart';
 import 'fx_builder.dart';
@@ -16,7 +17,8 @@ import 'fx_plan.dart';
 /// cameras freeze, shields bounce spells back.
 ///
 /// [topKey] and [bottomKey] are on the two camera feeds, so effects land
-/// exactly on them. The whole screen shakes on impact and the phone buzzes.
+/// exactly on them. The whole screen shakes on impact, the phone buzzes and
+/// each effect plays its sounds ([SfxService]).
 class SpellEffectsLayer extends StatefulWidget {
   const SpellEffectsLayer({
     super.key,
@@ -52,6 +54,7 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
   FxContext? _ctx;
   int? _playedRound;
   final Set<int> _firedImpacts = {};
+  final Set<int> _playedSounds = {};
 
   /// Colour filters for the cameras, applied by [FxTintTarget]s.
   final _tints = ValueNotifier<Map<FxSide, ColorFilter>>(const {});
@@ -89,6 +92,7 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
     _planned = buildSpellFx(planFor(r));
     _t = 0;
     _firedImpacts.clear();
+    _playedSounds.clear();
     if (_planned != null && widget.scrubTime == null) _ticker.start();
     if (rebuild) setState(() {});
   }
@@ -111,6 +115,16 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
           // Small rumbles, e.g. while two spells push against each other.
           HapticFeedback.lightImpact();
         }
+      }
+    }
+
+    final sounds = planned.fx.sounds;
+    for (var i = 0; i < sounds.length; i++) {
+      final cue = sounds[i];
+      // Skip a cue the ticker jumped well past (e.g. a dropped frame burst),
+      // so it doesn't play out of sync.
+      if (_t >= cue.time && _playedSounds.add(i) && _t - cue.time < .25) {
+        SfxService.instance.play(cue.sound, volume: cue.volume);
       }
     }
 

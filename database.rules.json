@@ -23,6 +23,19 @@
             "online": { ".validate": "newData.isBoolean()" }
           }
         },
+        "rematch": {
+          "$uid": {
+            ".validate": "$uid === auth.uid && newData.isBoolean()"
+          }
+        },
+        "emotes": {
+          "$uid": {
+            ".validate": "$uid === auth.uid && newData.hasChildren(['e', 'at']) && newData.child('at').val() === now",
+            "e": { ".validate": "newData.isString() && newData.val().length <= 16" },
+            "at": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
         "rounds": {
           "$round": {
             "commits": {

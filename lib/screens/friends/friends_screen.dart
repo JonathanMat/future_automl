@@ -10,6 +10,7 @@ import '../../services/social/friends_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/friends/add_friend_button.dart';
 import '../../widgets/friends/add_friend_row.dart';
 import '../../widgets/friends/challenge_banner.dart';
 import '../../widgets/friends/friend_code_card.dart';
@@ -157,7 +158,8 @@ class FriendsScreen extends StatelessWidget {
     );
   }
 
-  /// "+" next to a recent opponent who isn't a friend yet.
+  /// Add-friend button next to a recent opponent. Stays after they
+  /// became a friend, as a green check.
   Widget? _addButton(
     BuildContext context,
     FriendsProvider social,
@@ -165,32 +167,19 @@ class FriendsScreen extends StatelessWidget {
   ) {
     final uid = r.uid;
     if (uid == null || !social.isReady || uid == social.myUid) return null;
-    if (social.isFriend(uid)) return null;
-    if (social.isWorking(uid)) {
-      return const SizedBox.square(
-        dimension: 40,
-        child: Padding(
-          padding: EdgeInsets.all(10),
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: AppColors.gold,
-          ),
-        ),
-      );
-    }
-    if (social.requestSent(uid)) {
-      return const Tooltip(
-        message: 'Verzoek verstuurd',
-        child: Padding(
-          padding: EdgeInsets.all(8),
-          child: Icon(Icons.schedule_send_rounded, color: AppColors.textMuted),
-        ),
-      );
-    }
-    return IconButton(
-      tooltip: 'Voeg ${r.name} toe als vriend',
+    final state = social.isFriend(uid)
+        ? AddFriendState.friends
+        : social.isWorking(uid)
+        ? AddFriendState.working
+        : social.requestSent(uid)
+        ? AddFriendState.sent
+        : social.requests.any((q) => q.fromUid == uid)
+        ? AddFriendState.accept
+        : AddFriendState.add;
+    return AddFriendButton(
+      state: state,
+      name: r.name,
       onPressed: () => _run(context, social.addByUid(uid, r.name)),
-      icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.gold),
     );
   }
 }

@@ -45,7 +45,7 @@ dependencies:
   mediapipe_vision: ^0.4.1
   google_sign_in: ^7.2.0
   firebase_messaging: ^17.1.0
-
+  flutter_soloud: ^5.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -76,6 +76,7 @@ flutter:
     - assets/fonts/
     - assets/translations/
     - assets/models/
+    - assets/sounds/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

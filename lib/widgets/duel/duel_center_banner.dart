@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -112,7 +114,8 @@ class _DuelCenterBannerState extends State<DuelCenterBanner> {
     if (castAt == null) return s.config.countdown.inSeconds;
     final ms = castAt.difference(DateTime.now()).inMilliseconds;
     final secs = (ms / 1000).ceil();
-    return secs.clamp(1, s.config.countdown.inSeconds);
+    // max(): a countdown under a second (tests) would make clamp throw.
+    return secs.clamp(1, max(1, s.config.countdown.inSeconds));
   }
 }
 
@@ -211,7 +214,12 @@ class _Reveal extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(text.title, style: _numberStyle(40)),
+              // One line that shrinks: a long title on a narrow phone
+              // must not wrap out of the 96 px banner.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(text.title, maxLines: 1, style: _numberStyle(40)),
+              ),
               const SizedBox(height: 4),
               Text(
                 text.subtitle,
