@@ -240,17 +240,22 @@ class _Reel extends StatelessWidget {
               if (i + k >= 0 && i + k < reel.length)
                 Transform.translate(
                   offset: Offset(0, (k - frac) * itemHeight),
-                  child: Transform.scale(
-                    scale: k == 0 && frac < 0.01 ? 1 + 0.15 * landed : 1,
-                    child: Text(
-                      reel[i + k],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.display(
-                        40,
-                        color: i + k == reel.length - 1 && landed > 0
-                            ? (bye ? AppColors.green : AppColors.goldNumber)
-                            : AppColors.text,
+                  // Fades out away from the middle, so no sliver of the
+                  // name above or below stays once the reel stops.
+                  child: Opacity(
+                    opacity: (1 - (k - frac).abs()).clamp(0.0, 1.0),
+                    child: Transform.scale(
+                      scale: k == 0 && frac < 0.01 ? 1 + 0.15 * landed : 1,
+                      child: Text(
+                        reel[i + k],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.display(
+                          40,
+                          color: i + k == reel.length - 1 && landed > 0
+                              ? (bye ? AppColors.green : AppColors.goldNumber)
+                              : AppColors.text,
+                        ),
                       ),
                     ),
                   ),

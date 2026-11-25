@@ -49,7 +49,7 @@ class _TournamentCardState extends State<TournamentCard>
     _syncPulse(ready);
 
     final (String title, String text) = switch (d?.status) {
-      null => ('TOERNOOI', 'Speel met de hele klas, knock-out tot 16 spelers'),
+      null => ('TOERNOOI', 'Speel met je vrienden, knock-out tot 16 spelers'),
       TournamentStatus.lobby => (
         'TERUG NAAR TOERNOOI',
         'Wachtkamer ${d!.code} · ${d.players.length} spelers',
