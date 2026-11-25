@@ -71,9 +71,25 @@ class InlineStat extends StatelessWidget {
       excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        // One line each: the grid cells have a fixed height, so a wrapped
+        // label (narrow phone, large system text) would overflow.
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: AppTextStyles.display(22, color: valueColor)),
-          Text(label, style: AppTextStyles.caption()),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: AppTextStyles.display(22, color: valueColor),
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption(),
+          ),
         ],
       ),
     );

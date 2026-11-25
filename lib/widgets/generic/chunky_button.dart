@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -21,6 +23,7 @@ class ChunkyButton extends StatefulWidget {
     this.display = true,
     this.loading = false,
     this.semanticLabel,
+    this.dimWhenDisabled = true,
   });
 
   final String label;
@@ -36,7 +39,15 @@ class ChunkyButton extends StatefulWidget {
   /// Lilita One (true) or bold Nunito (false).
   final bool display;
   final bool loading;
+
+  /// Read by screen readers. Needed for an icon-only button (empty
+  /// [label]).
   final String? semanticLabel;
+
+  /// Fade the button when [onPressed] is null. Off for a button that shows
+  /// a finished state (e.g. "already friends") rather than an unavailable
+  /// action.
+  final bool dimWhenDisabled;
 
   @override
   State<ChunkyButton> createState() => _ChunkyButtonState();
@@ -66,6 +77,8 @@ class _ChunkyButtonState extends State<ChunkyButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null && !widget.loading;
+    // Icon-only when there is no label.
+    final hasLabel = widget.label.isNotEmpty;
     final c = _colors;
     final edge = widget.height >= 60 ? 6.0 : 4.0;
     final drop = _down ? edge - 1 : 0.0;
@@ -84,7 +97,9 @@ class _ChunkyButtonState extends State<ChunkyButton> {
         onTapCancel: enabled ? () => setState(() => _down = false) : null,
         onTap: enabled ? widget.onPressed : null,
         child: Opacity(
-          opacity: enabled || widget.loading ? 1 : 0.45,
+          opacity: enabled || widget.loading || !widget.dimWhenDisabled
+              ? 1
+              : 0.45,
           child: SizedBox(
             height: widget.height + edge,
             child: Stack(
@@ -117,7 +132,7 @@ class _ChunkyButtonState extends State<ChunkyButton> {
                     child: Center(
                       child: widget.loading
                           ? SizedBox.square(
-                              dimension: 24,
+                              dimension: min(24, widget.height * .5),
                               child: CircularProgressIndicator(
                                 strokeWidth: 3,
                                 color: c.ink,
@@ -128,24 +143,25 @@ class _ChunkyButtonState extends State<ChunkyButton> {
                               children: [
                                 if (widget.iconBuilder != null) ...[
                                   widget.iconBuilder!(c.ink, fontSize),
-                                  const SizedBox(width: 10),
+                                  if (hasLabel) const SizedBox(width: 10),
                                 ] else if (widget.icon != null) ...[
                                   Icon(
                                     widget.icon,
                                     color: c.ink,
                                     size: fontSize,
                                   ),
-                                  const SizedBox(width: 10),
+                                  if (hasLabel) const SizedBox(width: 10),
                                 ],
-                                Flexible(
-                                  child: Text(
-                                    widget.label,
-                                    style: textStyle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
+                                if (hasLabel)
+                                  Flexible(
+                                    child: Text(
+                                      widget.label,
+                                      style: textStyle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                     ),

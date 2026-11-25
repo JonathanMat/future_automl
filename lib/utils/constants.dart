@@ -13,6 +13,10 @@ abstract final class AppConstants {
   /// second; a frame is skipped while the previous one is still running).
   static const recognitionInterval = Duration(milliseconds: 150);
 
+  /// After the last round: time for the final spell effect and the
+  /// "GEWONNEN" / "VERLOREN" banner before the result screen opens.
+  static const resultScreenDelay = Duration(milliseconds: 3400);
+
   // Rooms
   static const roomCodeLength = 4;
   static const playerNameMaxLength = 16;
@@ -26,4 +30,5 @@ abstract final class AppConstants {
   static const friendsKey = 'friends.v1';
   static const shareVideoKey = 'settings.shareVideo';
   static const voiceChatKey = 'settings.voiceChat';
+  static const soundEffectsKey = 'settings.soundEffects';
 }

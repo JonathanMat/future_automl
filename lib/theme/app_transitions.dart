@@ -39,6 +39,34 @@ abstract final class AppTransitions {
     );
   }
 
+  /// The result screen after a duel: zooms in from a little smaller with a
+  /// slight overshoot, like the "GEWONNEN" banner before it.
+  static Route<T> reveal<T>(Widget page, RouteSettings settings) {
+    return PageRouteBuilder<T>(
+      settings: settings,
+      transitionDuration: const Duration(milliseconds: 650),
+      reverseTransitionDuration: fast,
+      pageBuilder: (_, _, _) => page,
+      transitionsBuilder: (_, animation, _, child) {
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0, .6, curve: Curves.easeOut),
+        );
+        final zoom = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+        );
+        return FadeTransition(
+          opacity: fade,
+          child: ScaleTransition(
+            scale: Tween(begin: 0.86, end: 1.0).animate(zoom),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   /// Tab switches in the bottom navigation: a quick cross-fade.
   static Route<T> fade<T>(Widget page, RouteSettings settings) {
     return PageRouteBuilder<T>(

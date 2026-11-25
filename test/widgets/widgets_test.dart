@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +14,7 @@ import 'package:spell_duel/services/storage/local_storage_service.dart';
 import '../services/game_provider_test.dart' show FakeCameraPermission;
 import 'package:spell_duel/services/permissions/camera_permission_service.dart';
 import 'package:spell_duel/theme/app_text_styles.dart';
+import 'package:spell_duel/widgets/duel/emotes/emote_burst.dart';
 import 'package:spell_duel/widgets/duel/spell_card_grid.dart';
 import 'package:spell_duel/widgets/generic/chunky_button.dart';
 
@@ -144,6 +147,101 @@ void main() {
       await tester.tap(find.text('Verlaten'));
       await _pumpFor(tester, const Duration(milliseconds: 600));
       expect(find.text('DUEL STARTEN'), findsOneWidget);
+    });
+
+    testWidgets('send an emote from the duel', (tester) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.text('DUEL STARTEN'));
+      await _pumpFor(tester, const Duration(milliseconds: 1600));
+      expect(find.text('MAAK JE GEBAAR'), findsOneWidget);
+      // Let the "VS" intro finish: it covers the screen until then.
+      await _pumpFor(tester, const Duration(seconds: 3));
+
+      await tester.tap(find.byTooltip('Emotes'));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+      expect(find.text('Goed gespeeld'), findsOneWidget);
+      await tester.tap(find.text('GG'));
+      await _pumpFor(tester, const Duration(milliseconds: 300));
+
+      // The picker closed and your emote pops up on your camera.
+      expect(find.text('Goed gespeeld'), findsNothing);
+      expect(find.byType(EmoteBurst), findsWidgets);
+      await _pumpFor(tester, const Duration(seconds: 4));
+      expect(tester.takeException(), isNull);
+
+      await tester.binding.handlePopRoute();
+      await _pumpFor(tester, const Duration(milliseconds: 500));
+      await tester.tap(find.text('Verlaten'));
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+    });
+
+    testWidgets('after the last round the result opens; rematch needs a yes', (
+      tester,
+    ) async {
+      // The mock times rounds with the real clock (DateTime.now()), so let
+      // real time pass along with the test's fake time.
+      Future<void> realTime(Duration d) async {
+        const step = Duration(milliseconds: 50);
+        for (var t = Duration.zero; t < d; t += step) {
+          await tester.runAsync(() => Future<void>.delayed(step));
+          await tester.pump(step);
+        }
+      }
+
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        SpellDuelApp(
+          backend: MockGameBackend(
+            useCamera: false,
+            botJoinDelay: const Duration(milliseconds: 100),
+            botEmotes: false,
+            random: Random(2),
+            config: const GameConfig(
+              countdown: Duration(milliseconds: 300),
+              castWindow: Duration(milliseconds: 1200),
+              resultPause: Duration(milliseconds: 500),
+              roundLead: Duration(milliseconds: 100),
+            ),
+          ),
+          profile: profile,
+          friends: MockFriendsBackend(),
+        ),
+      );
+      await tester.pump();
+
+      // Never cast: casting nothing loses every round, so the game ends.
+      await tester.tap(find.text('DUEL STARTEN'));
+      for (var i = 0; i < 300; i++) {
+        if (find.text('BEKIJK RESULTAAT').evaluate().isNotEmpty) break;
+        await realTime(const Duration(milliseconds: 100));
+      }
+      expect(find.text('BEKIJK RESULTAAT'), findsOneWidget);
+
+      // No tap needed: the result screen opens after the final effect.
+      await realTime(const Duration(seconds: 4));
+      expect(find.text('REVANCHE'), findsOneWidget);
+
+      // Asking is not starting: wait for the opponent's yes.
+      await tester.tap(find.text('REVANCHE'));
+      await tester.pump();
+      expect(find.text('WACHTEN…'), findsOneWidget);
+      await realTime(const Duration(milliseconds: 1500));
+      expect(find.text('REVANCHE'), findsNothing);
+      // A clean new game: full lives, no replay of the old final round.
+      expect(find.text('BEKIJK RESULTAAT'), findsNothing);
+      expect(find.text('Volgende ronde start zo…'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await _pumpFor(tester, const Duration(milliseconds: 500));
+      await tester.tap(find.text('Verlaten'));
+      await _pumpFor(tester, const Duration(milliseconds: 600));
     });
 
     testWidgets('a room that shows up late is not reported as closed', (

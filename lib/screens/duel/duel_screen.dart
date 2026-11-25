@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../navigators/app_router.dart';
@@ -6,15 +9,19 @@ import '../../models/spell_info.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../services/audio/sfx_service.dart';
 import '../../services/game/game_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/constants.dart';
 import '../../utils/gesture_constants.dart';
 import '../../widgets/duel/cast_meter.dart';
 import '../../widgets/duel/duel_center_banner.dart';
 import '../../widgets/duel/duel_header.dart';
 import '../../widgets/duel/duel_intro.dart';
 import '../../widgets/duel/effects/spell_effects_layer.dart';
+import '../../widgets/duel/emotes/emote_burst.dart';
+import '../../widgets/duel/emotes/emote_picker.dart';
 import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/gesture_debug_overlay.dart';
 import '../../widgets/duel/spell_card_grid.dart';
@@ -40,6 +47,77 @@ class _DuelScreenState extends State<DuelScreen> {
 
   /// The "VS" intro plays once when the duel opens.
   bool _introDone = false;
+
+  StreamSubscription<Emote>? _emoteSub;
+
+  /// The emote on each feed right now; the id restarts its animation.
+  ({Emote emote, int id})? _theirEmote, _myEmote;
+  int _emoteId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _emoteSub = context.read<GameProvider>().opponentEmotes.listen(
+      _onOpponentEmote,
+    );
+  }
+
+  /// Opens the result screen once the final effect has played.
+  Timer? _resultTimer;
+  bool _openedResult = false;
+
+  void _openResult() {
+    _resultTimer?.cancel();
+    if (!mounted || _leaving || _openedResult) return;
+    _openedResult = true;
+    Navigator.of(context).pushReplacementNamed(AppRoutes.result);
+  }
+
+  @override
+  void dispose() {
+    _resultTimer?.cancel();
+    _emoteSub?.cancel();
+    super.dispose();
+  }
+
+  void _onOpponentEmote(Emote emote) {
+    if (!mounted || _leaving) return;
+    SfxService.instance.play(SfxSound.forEmote(emote));
+    HapticFeedback.selectionClick();
+    setState(() => _theirEmote = (emote: emote, id: ++_emoteId));
+  }
+
+  void _sendEmote(Emote emote) {
+    SfxService.instance.play(SfxSound.emoteSend, volume: .6);
+    setState(() => _myEmote = (emote: emote, id: ++_emoteId));
+    context.read<GameProvider>().sendEmote(emote);
+  }
+
+  /// An emote popping up: the opponent's in the middle of their feed, yours
+  /// small above the emote button, so it doesn't cover your hand.
+  Widget? _burst(({Emote emote, int id})? shown, double size, bool mine) {
+    if (shown == null) return null;
+    return Positioned(
+      left: mine ? null : 0,
+      top: mine ? null : 0,
+      right: mine ? 4 : 0,
+      bottom: mine ? 60 : 0,
+      child: Center(
+        child: EmoteBurst(
+          key: ValueKey(shown.id),
+          emote: shown.emote,
+          size: size,
+          onDone: () {
+            if (!mounted) return;
+            setState(() {
+              if (mine && _myEmote?.id == shown.id) _myEmote = null;
+              if (!mine && _theirEmote?.id == shown.id) _theirEmote = null;
+            });
+          },
+        ),
+      ),
+    );
+  }
 
   /// While these phases run, the opponent's video is blurred.
   static const _hiddenPhases = {
@@ -91,6 +169,11 @@ class _DuelScreenState extends State<DuelScreen> {
         AppRouter.goHome(context);
       });
       return;
+    }
+    // A normal game end: show the final effect, then the result screen by
+    // itself. Not when the opponent left: there is no real result then.
+    if (s.phase == GamePhase.finished && s.error == null) {
+      _resultTimer ??= Timer(AppConstants.resultScreenDelay, _openResult);
     }
     final error = game.actionError;
     if (error != null && error != _shownError) {
@@ -206,6 +289,7 @@ class _DuelScreenState extends State<DuelScreen> {
                                   ],
                                 ),
                               ),
+                              ?_burst(_theirEmote, 96, false),
                             ],
                           ),
                         ),
@@ -249,6 +333,13 @@ class _DuelScreenState extends State<DuelScreen> {
                                   canCast: s.canCast,
                                 ),
                               ),
+                              ?_burst(_myEmote, 56, true),
+                              Positioned.fill(
+                                child: EmoteControls(
+                                  enabled: s.opponent != null,
+                                  onSend: _sendEmote,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -256,7 +347,11 @@ class _DuelScreenState extends State<DuelScreen> {
                       const SizedBox(height: 14),
                       SizedBox(
                         height: 104,
-                        child: _BottomArea(state: s, game: game),
+                        child: _BottomArea(
+                          state: s,
+                          game: game,
+                          onOpenResult: _openResult,
+                        ),
                       ),
                     ],
                   ),
@@ -289,10 +384,18 @@ class _DuelScreenState extends State<DuelScreen> {
 }
 
 class _BottomArea extends StatelessWidget {
-  const _BottomArea({required this.state, required this.game});
+  const _BottomArea({
+    required this.state,
+    required this.game,
+    required this.onOpenResult,
+  });
 
   final GameState state;
   final GameProvider game;
+
+  /// Opens the result screen now (it also opens by itself after the final
+  /// effect).
+  final VoidCallback onOpenResult;
 
   @override
   Widget build(BuildContext context) {
@@ -315,8 +418,7 @@ class _BottomArea extends StatelessWidget {
               style: won
                   ? ChunkyButtonStyle.success
                   : ChunkyButtonStyle.primary,
-              onPressed: () =>
-                  Navigator.of(context).pushReplacementNamed(AppRoutes.result),
+              onPressed: onOpenResult,
             ),
             const SizedBox(height: 8),
             Text(

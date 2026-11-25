@@ -71,6 +71,60 @@ void main() {
     await backend.dispose();
   });
 
+  test('a rematch is a request and starts a clean new game', () async {
+    final backend = newBackend();
+    await backend.createRoom(playerName: 'Maarten');
+    final sub = backend.gameState.listen((s) {
+      if (s.canCast) backend.submitSpell(Spell.vuur);
+    });
+    await backend.gameState
+        .firstWhere((s) => s.phase == GamePhase.finished)
+        .timeout(const Duration(seconds: 20));
+    await sub.cancel();
+
+    await backend.playAgain();
+    // Asked, not started yet: still on the finished game.
+    expect(backend.state.phase, GamePhase.finished);
+    expect(backend.state.iWantRematch, isTrue);
+
+    final next = await backend.gameState
+        .firstWhere((s) => s.phase == GamePhase.countdown && s.round == 1)
+        .timeout(const Duration(seconds: 5));
+    // Nothing of the old game is left to show or replay.
+    expect(next.lastResult, isNull);
+    expect(next.iWantRematch, isFalse);
+    expect(next.me!.lives, fast.startLives);
+    expect(next.opponent!.lives, fast.startLives);
+    await backend.dispose();
+  });
+
+  test('the bot answers some emotes', () async {
+    final backend = newBackend();
+    await backend.createRoom(playerName: 'Maarten');
+    await backend.gameState.firstWhere((s) => s.opponent != null);
+
+    final received = <Emote>[];
+    final sub = backend.opponentEmotes.listen(received.add);
+    for (var i = 0; i < 6; i++) {
+      await backend.sendEmote(Emote.hallo);
+    }
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await sub.cancel();
+
+    // Half of the time, and "hallo" is answered with "hallo".
+    expect(received, isNotEmpty);
+    expect(received, everyElement(Emote.hallo));
+    await backend.dispose();
+  });
+
+  test('emotes go over the wire by name', () {
+    for (final e in Emote.values) {
+      expect(Emote.fromWire(e.wire), e);
+    }
+    expect(Emote.fromWire('nope'), isNull);
+    expect(Emote.fromWire(null), isNull);
+  });
+
   test('only the first round of a game waits for the VS intro', () async {
     final backend = MockGameBackend(
       useCamera: false,

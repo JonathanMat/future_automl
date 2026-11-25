@@ -80,6 +80,8 @@ class GameState {
     this.mySpell,
     this.lastResult,
     this.iWon,
+    this.iWantRematch = false,
+    this.opponentWantsRematch = false,
     this.callStatus = CallStatus.none,
     this.error,
   });
@@ -106,6 +108,13 @@ class GameState {
   /// Set when [phase] is [GamePhase.finished].
   final bool? iWon;
 
+  /// After a game: this player asked for a rematch (see
+  /// [GameBackend.playAgain]). The new game starts once both asked.
+  final bool iWantRematch;
+
+  /// After a game: the opponent asked for a rematch.
+  final bool opponentWantsRematch;
+
   final CallStatus callStatus;
 
   /// Last non-fatal error, e.g. "opponent left".
@@ -131,6 +140,8 @@ class GameState {
     bool clearMySpell = false,
     RoundResult? lastResult,
     bool? iWon,
+    bool? iWantRematch,
+    bool? opponentWantsRematch,
     CallStatus? callStatus,
     String? error,
   }) => GameState(
@@ -145,6 +156,8 @@ class GameState {
     mySpell: clearMySpell ? null : (mySpell ?? this.mySpell),
     lastResult: lastResult ?? this.lastResult,
     iWon: iWon ?? this.iWon,
+    iWantRematch: iWantRematch ?? this.iWantRematch,
+    opponentWantsRematch: opponentWantsRematch ?? this.opponentWantsRematch,
     callStatus: callStatus ?? this.callStatus,
     error: error ?? this.error,
   );

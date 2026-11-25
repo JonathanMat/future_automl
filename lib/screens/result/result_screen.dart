@@ -9,6 +9,8 @@ import '../../services/game/game_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_transitions.dart';
+import '../../widgets/generic/pill_badge.dart';
 import '../../widgets/badges/badge_unlock_overlay.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/result/duel_stats_card.dart';
@@ -50,6 +52,8 @@ class _ResultScreenState extends State<ResultScreen> {
     Navigator.of(context).pushReplacementNamed(AppRoutes.duel);
   }
 
+  /// Asks for (or accepts) a rematch. The duel opens by itself once both
+  /// players agreed and the new countdown starts.
   Future<void> _rematch(BuildContext context) async {
     final game = context.read<GameProvider>();
     await game.playAgain();
@@ -59,9 +63,7 @@ class _ResultScreenState extends State<ResultScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(game.actionError!)));
       game.clearError();
-      return;
     }
-    _goToDuel();
   }
 
   Future<void> _backToTournament(BuildContext context) async {
@@ -83,13 +85,17 @@ class _ResultScreenState extends State<ResultScreen> {
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameProvider>();
-    // The opponent asked for a rematch: the new game has started.
+    // Both asked for a rematch: the new game has started.
     if (!_navigated && _activePhases.contains(game.state.phase)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _goToDuel());
     }
     final profile = context.watch<ProfileProvider>().profile;
     final summary = game.lastSummary;
-    final roomOpen = game.state.phase == GamePhase.finished;
+    final s = game.state;
+    // "finished" with an error: the opponent left or the room is gone.
+    final roomOpen = s.phase == GamePhase.finished && s.error == null;
+    final opponentName =
+        s.opponent?.name ?? summary?.opponentName ?? 'je tegenstander';
     // A tournament match: no rematch, back to the bracket.
     final tournament = context.watch<TournamentProvider?>();
     final inTournament =
@@ -152,11 +158,26 @@ class _ResultScreenState extends State<ResultScreen> {
                       )
                     : Column(
                         children: [
+                          _RematchNote(
+                            roomOpen: roomOpen,
+                            iAsked: s.iWantRematch,
+                            theyAsked: s.opponentWantsRematch,
+                            opponentName: opponentName,
+                          ),
                           ChunkyButton(
-                            label: 'REVANCHE',
+                            label: !roomOpen
+                                ? 'REVANCHE'
+                                : s.iWantRematch
+                                ? 'WACHTEN…'
+                                : s.opponentWantsRematch
+                                ? 'REVANCHE ACCEPTEREN'
+                                : 'REVANCHE',
                             height: 62,
                             fontSize: 22,
-                            onPressed: roomOpen
+                            style: s.opponentWantsRematch && !s.iWantRematch
+                                ? ChunkyButtonStyle.success
+                                : ChunkyButtonStyle.primary,
+                            onPressed: roomOpen && !s.iWantRematch
                                 ? () => _rematch(context)
                                 : null,
                           ),
@@ -193,6 +214,54 @@ class _ResultScreenState extends State<ResultScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One line above the rematch button: who asked, or why it's off.
+class _RematchNote extends StatelessWidget {
+  const _RematchNote({
+    required this.roomOpen,
+    required this.iAsked,
+    required this.theyAsked,
+    required this.opponentName,
+  });
+
+  final bool roomOpen;
+  final bool iAsked;
+  final bool theyAsked;
+  final String opponentName;
+
+  @override
+  Widget build(BuildContext context) {
+    final (String? text, Color color, IconData icon) = !roomOpen
+        ? (
+            '$opponentName heeft de kamer verlaten.',
+            AppColors.textMuted,
+            Icons.logout_rounded,
+          )
+        : iAsked
+        ? (
+            'Revanche gevraagd. We starten zodra $opponentName ook wil.',
+            AppColors.gold,
+            Icons.hourglass_top_rounded,
+          )
+        : theyAsked
+        ? (
+            '$opponentName wil een revanche!',
+            AppColors.green,
+            Icons.replay_rounded,
+          )
+        : (null, AppColors.text, Icons.replay_rounded);
+    return AnimatedSize(
+      duration: AppTransitions.fast,
+      alignment: Alignment.bottomCenter,
+      child: text == null
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: PillBadge(label: text, color: color, icon: icon),
+            ),
     );
   }
 }

@@ -53,7 +53,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             const ChallengeBanner(padding: EdgeInsets.only(bottom: 20)),
-            SpellHeroCard(config: game.state.config),
+            const SpellHeroCard(),
             const SizedBox(height: 20),
             ChunkyButton(
               label: 'DUEL STARTEN',
@@ -75,6 +75,8 @@ class HomeScreen extends StatelessWidget {
                     Navigator.of(context).pushNamed(AppRoutes.tournament),
               ),
             ],
+            const SizedBox(height: 20),
+            SpellRulesCard(config: game.state.config),
             const SizedBox(height: 20),
             Row(
               children: [

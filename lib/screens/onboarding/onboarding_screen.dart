@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/game_rules.dart';
-import '../../models/spell_info.dart';
 import '../../navigators/app_router.dart';
 import '../../providers/profile_provider.dart';
 import '../../theme/app_colors.dart';
@@ -11,7 +9,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/generic/app_logo.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/name_field.dart';
-import '../../widgets/generic/spell_orb.dart';
+import '../../widgets/generic/app_card.dart';
+import '../../widgets/generic/spell_cycle_diagram.dart';
 
 /// First launch: ask for a name, explain the gestures.
 class OnboardingScreen extends StatefulWidget {
@@ -63,43 +62,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   textAlign: TextAlign.center,
                   style: AppTextStyles.display(48),
                 ),
-                const SizedBox(height: 28),
-                for (final spell in Spell.values)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(18),
+                const SizedBox(height: 24),
+                AppCard(
+                  padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
+                  child: Column(
+                    children: [
+                      Text('ZO WERKT HET', style: AppTextStyles.overline()),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Maak het gebaar, de pijl wijst naar wie je verslaat.',
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.body(
+                          13,
+                          weight: FontWeight.w700,
+                          color: AppColors.textSoft,
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          SpellOrb(spell: spell, size: 44, glow: false),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  spell.label,
-                                  style: AppTextStyles.display(18),
-                                ),
-                                Text(
-                                  'Gebaar: ${spell.gesture}',
-                                  style: AppTextStyles.caption(),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            'wint van ${spell.beats.map((s) => s.label).join(', ')}',
-                            style: AppTextStyles.caption(color: spell.color),
-                          ),
-                        ],
-                      ),
-                    ),
+                      const SizedBox(height: 10),
+                      const SpellCycleDiagram(),
+                    ],
                   ),
+                ),
                 const SizedBox(height: 18),
                 NameField(controller: _name, onSubmitted: _save),
                 const SizedBox(height: 16),

@@ -76,11 +76,39 @@ void main() {
         ),
       ),
     );
-    await pumpFor(tester, const Duration(seconds: 1));
+    // Play the whole lose animation (sinking, swinging, rain).
+    await pumpFor(tester, const Duration(seconds: 4));
     expect(tester.takeException(), isNull);
-    expect(find.text('VERLOREN'), findsOneWidget);
+    // The title is drawn letter by letter; screen readers get the word.
+    final semantics = tester.ensureSemantics();
+    await tester.pump();
+    expect(find.bySemanticsLabel('Verloren'), findsOneWidget);
+    semantics.dispose();
     expect(find.text('+40 XP'), findsOneWidget);
     expect(find.text('JOUW DUEL'), findsOneWidget);
+  });
+
+  testWidgets('the win animation plays to the end without errors', (
+    tester,
+  ) async {
+    phoneSize(tester);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ResultHero(won: true, opponentName: 'Bot', rounds: 3),
+          ),
+        ),
+      ),
+    );
+    // Confetti, rays and the letters popping in.
+    await pumpFor(tester, const Duration(seconds: 4));
+    expect(tester.takeException(), isNull);
+    final semantics = tester.ensureSemantics();
+    await tester.pump();
+    expect(find.bySemanticsLabel('Gewonnen!'), findsOneWidget);
+    semantics.dispose();
+    expect(find.text('Je versloeg Bot in 3 rondes.'), findsOneWidget);
   });
 
   testWidgets('tabs, settings and the effects preview open cleanly', (
