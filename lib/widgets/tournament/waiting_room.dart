@@ -123,8 +123,11 @@ class WaitingRoom extends StatelessWidget {
           child: isHost
               ? ChunkyButton(
                   label: n < 2 ? 'WACHTEN OP SPELERS…' : 'START TOERNOOI',
-                  icon: Icons.play_arrow_rounded,
+                  icon: n < 2
+                      ? Icons.hourglass_top_rounded
+                      : Icons.play_arrow_rounded,
                   style: ChunkyButtonStyle.success,
+                  dimWhenDisabled: n >= 2,
                   loading: busy,
                   onPressed: n < 2 || busy ? null : onStart,
                 )

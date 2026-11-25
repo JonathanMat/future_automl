@@ -253,6 +253,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       : challenge != null
                       ? 'WACHTEN OP ${challenge.name.toUpperCase()}'
                       : 'WACHTEN OP TEGENSTANDER',
+                  style: ChunkyButtonStyle.success,
+                  dimWhenDisabled: false,
                   fontSize: opponent == null ? 18 : 24,
                   onPressed: opponent == null ? null : _goToDuel,
                 ),

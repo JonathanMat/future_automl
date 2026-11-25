@@ -211,6 +211,7 @@ class _ChampionOverlayState extends State<ChampionOverlay>
                             label: 'BEKIJK SCHEMA',
                             height: 58,
                             fontSize: 20,
+                            style: ChunkyButtonStyle.success,
                             onPressed: rest.value > 0.5 ? widget.onClose : null,
                           ),
                         ),

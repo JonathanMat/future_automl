@@ -156,11 +156,17 @@ class FirebaseTournamentBackend extends TournamentBackend {
     final ref = _ref(code).child('readyAt/$matchId/$uid');
     if (ready) {
       await ref.onDisconnect().remove();
-      await ref.runTransaction((value) {
-        return value == null
-            ? Transaction.success(ServerValue.timestamp)
-            : Transaction.abort();
-      }, applyLocally: false);
+      // A plain set, not a transaction: a transaction fills in the server
+      // time on the phone, and the rules (`=== now`) would refuse it.
+      try {
+        await ref.set(ServerValue.timestamp);
+      } on FirebaseException catch (e) {
+        // The rules allow it once per match: already ready is fine.
+        if (e.code == 'permission-denied' && (await ref.get()).value is num) {
+          return;
+        }
+        rethrow;
+      }
     } else {
       await ref.remove();
     }
