@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/badge.dart';
+import '../../services/audio/sfx_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../generic/chunky_button.dart';
@@ -52,6 +53,8 @@ class _BadgeUnlockOverlayState extends State<_BadgeUnlockOverlay>
   int _index = 0;
   bool _landed = false;
 
+  /// When the medal lands. The badge sound's chord hits at the same moment
+  /// (BADGE_LAND in tool/gen_sfx.py): change both together.
   static const _land = .42;
 
   BadgeDef get _badge => widget.badges[_index];
@@ -60,6 +63,7 @@ class _BadgeUnlockOverlayState extends State<_BadgeUnlockOverlay>
   void initState() {
     super.initState();
     _intro.forward();
+    SfxService.instance.play(SfxSound.badgeUnlock);
   }
 
   void _onTick() {
@@ -79,6 +83,7 @@ class _BadgeUnlockOverlayState extends State<_BadgeUnlockOverlay>
       _landed = false;
     });
     _intro.forward(from: 0);
+    SfxService.instance.play(SfxSound.badgeUnlock);
   }
 
   @override

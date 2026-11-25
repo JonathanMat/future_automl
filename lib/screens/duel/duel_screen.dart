@@ -88,7 +88,8 @@ class _DuelScreenState extends State<DuelScreen> {
   }
 
   void _sendEmote(Emote emote) {
-    SfxService.instance.play(SfxSound.emoteSend, volume: .6);
+    // Like the other player, you hear your emote's own sound, a bit softer.
+    SfxService.instance.play(SfxSound.forEmote(emote), volume: .8);
     setState(() => _myEmote = (emote: emote, id: ++_emoteId));
     context.read<GameProvider>().sendEmote(emote);
   }

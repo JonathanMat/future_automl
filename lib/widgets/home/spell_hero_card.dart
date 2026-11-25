@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../models/game_rules.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../generic/app_card.dart';
 import '../generic/app_logo.dart';
-import '../generic/spell_cycle_diagram.dart';
 
 /// Title card: logo, name and what the game is.
 class SpellHeroCard extends StatelessWidget {
@@ -45,28 +43,6 @@ class SpellHeroCard extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Zo werkt het": the spells with what beats what, under the buttons on
-/// home so starting a duel stays at the top.
-class SpellRulesCard extends StatelessWidget {
-  const SpellRulesCard({super.key, this.config = const GameConfig()});
-
-  final GameConfig config;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
-      child: Column(
-        children: [
-          Text('ZO WERKT HET', style: AppTextStyles.overline()),
-          const SizedBox(height: 10),
-          SpellCycleDiagram(config: config),
         ],
       ),
     );

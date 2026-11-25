@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,16 +27,25 @@ class ResultScreen extends StatefulWidget {
 
 class _ResultScreenState extends State<ResultScreen> {
   bool _navigated = false;
+  Timer? _badgeTimer;
 
   @override
   void initState() {
     super.initState();
-    // Let the result settle in first, then celebrate new badges.
-    Future<void>.delayed(const Duration(milliseconds: 900), () {
+    // Let the result play out first (its sound and animation), then
+    // celebrate new badges, so the two sounds don't overlap.
+    final won = context.read<GameProvider>().lastSummary?.won ?? false;
+    _badgeTimer = Timer(ResultHero.doneAfter(won), () {
       if (!mounted || _navigated) return;
       final fresh = context.read<ProfileProvider>().takeNewBadges();
       if (fresh.isNotEmpty) showBadgeUnlocks(context, fresh);
     });
+  }
+
+  @override
+  void dispose() {
+    _badgeTimer?.cancel();
+    super.dispose();
   }
 
   static const _activePhases = {

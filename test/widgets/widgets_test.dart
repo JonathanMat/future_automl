@@ -202,6 +202,9 @@ void main() {
             useCamera: false,
             botJoinDelay: const Duration(milliseconds: 100),
             botEmotes: false,
+            // You ask for the rematch here; the bot asking first would
+            // turn the button into "REVANCHE ACCEPTEREN".
+            botAsksRematch: false,
             random: Random(2),
             config: const GameConfig(
               countdown: Duration(milliseconds: 300),

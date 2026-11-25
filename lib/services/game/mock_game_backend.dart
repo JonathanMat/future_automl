@@ -18,6 +18,7 @@ class MockGameBackend implements GameBackend {
     this.mirrorCameraAsOpponent = true,
     this.botJoinDelay = const Duration(seconds: 2),
     this.botEmotes = true,
+    this.botAsksRematch = true,
     Random? random,
   }) : _random = random ?? Random();
 
@@ -37,6 +38,10 @@ class MockGameBackend implements GameBackend {
 
   /// Let the bot send emotes. Turn off in tests that count them.
   final bool botEmotes;
+
+  /// Let the bot sometimes ask for a rematch itself after a game. Turn off
+  /// in tests that check asking for one yourself.
+  final bool botAsksRematch;
   final Random _random;
 
   static const _myUid = 'mock-me';
@@ -223,7 +228,7 @@ class MockGameBackend implements GameBackend {
       _botEmote(reaction, const Duration(milliseconds: 1400));
     }
     // Sometimes the bot asks for a rematch itself.
-    if (finished && _random.nextBool()) {
+    if (finished && botAsksRematch && _random.nextBool()) {
       _later(const Duration(milliseconds: 2500), () {
         if (_state.phase == GamePhase.finished) {
           _emit(_state.copyWith(opponentWantsRematch: true));

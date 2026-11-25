@@ -40,6 +40,13 @@ class ResultHero extends StatefulWidget {
   /// Wait for the screen's own entrance animation first.
   static const startDelay = Duration(milliseconds: 350);
 
+  /// How long the entrance animation runs, from the first note.
+  static Duration animationLength(bool won) =>
+      Duration(milliseconds: won ? 3000 : 3400);
+
+  /// When the hero is done: its sound has ended and the animation settled.
+  static Duration doneAfter(bool won) => startDelay + animationLength(won);
+
   @override
   State<ResultHero> createState() => _ResultHeroState();
 }
@@ -48,7 +55,7 @@ class _ResultHeroState extends State<ResultHero>
     with SingleTickerProviderStateMixin {
   late final _c = AnimationController(
     vsync: this,
-    duration: Duration(milliseconds: widget.won ? 3000 : 3400),
+    duration: ResultHero.animationLength(widget.won),
   );
   final _confetti = OverlayPortalController();
   final _anchor = LayerLink();

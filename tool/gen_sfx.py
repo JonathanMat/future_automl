@@ -1,4 +1,4 @@
-"""Synthesizes the spell and emote sound effects in assets/sounds/.
+"""Synthesizes the spell, emote, result and badge sound effects in assets/sounds/.
 
 Every sound is generated from noise and oscillators, so there are no
 licensing questions. Tweak a function and re-run:
@@ -125,6 +125,8 @@ def partials(dur, freqs, taus, amps=None, detune=0.0):
 
 def place(dst, src, at):
     i = int(at * SR)
+    if i >= len(dst):
+        return dst
     j = min(len(dst), i + len(src))
     dst[i:j] += src[: j - i]
     return dst
@@ -180,34 +182,142 @@ def fire_explode():
 # ---------------------------------------------------------------------------
 
 
+def room(x, decay=0.8, wet=0.3, bright=7000, tail=0.3):
+    """A simple reverb, so a sound sits in a space instead of in your ear:
+    x convolved with decaying noise (highs die faster). No discrete early
+    reflections: those comb-filter the sound and make it metallic. The
+    result is `tail` seconds longer than x."""
+    from scipy.signal import fftconvolve
+
+    x = np.concatenate([x, np.zeros(int(tail * SR))])
+    n = int(decay * SR)
+    t = np.arange(n) / SR
+    ir = lp(rng.standard_normal(n), bright) * np.exp(-t * 6.9 / decay)
+    ir += 0.4 * hp(rng.standard_normal(n), bright) * np.exp(-t * 6.9 / (0.35 * decay))
+    ir[: int(0.008 * SR)] = 0  # pre-delay
+    ir /= np.sqrt(np.sum(ir**2))
+    w = fftconvolve(x, ir)[: len(x)]
+    w *= np.sqrt(np.mean(x**2) / (np.mean(w**2) + 1e-12))
+    return (1 - wet) * x + wet * w
+
+
+def n_wave(d):
+    """One shock wave: a jump up, a straight fall to below zero, a jump
+    back. The building block of thunder and of every sharp crack."""
+    return np.linspace(1, -1, max(3, int(d * SR)))
+
+
+def pulse_train(dur, times, amps, durs):
+    out = np.zeros(int(dur * SR))
+    for at, a, d in zip(times, amps, durs):
+        if 0 <= at < dur:
+            place(out, a * n_wave(d), at)
+    return out
+
+
+def modes(freqs, taus, amps, excite=0.0008):
+    """Something struck: a short noise tap rings a few resonances (its
+    modes), each dying away at its own speed."""
+    dur = min(0.6, 5 * max(taus))
+    n = int(dur * SR)
+    ex = np.zeros(n)
+    ln = max(2, int(excite * SR))
+    ex[:ln] = rng.standard_normal(ln) * np.hanning(ln)
+    out = np.zeros(n)
+    for f, tau, a in zip(freqs, taus, amps):
+        if f >= SR / 2 - 500:
+            continue
+        y = resonator(ex, f, 1 / (np.pi * tau))
+        out += a * y / (np.max(np.abs(y)) + 1e-12)
+    return out
+
+
+def ice_tink(f0, tau=0.05):
+    """A small piece of ice ringing: a few inharmonic modes."""
+    ratios = [1, 1.62 * rng.uniform(0.97, 1.03), 2.31 * rng.uniform(0.97, 1.03), 3.17 * rng.uniform(0.97, 1.03)]
+    return modes([f0 * r for r in ratios], [tau, tau * 0.7, tau * 0.5, tau * 0.35], [1, 0.7, 0.45, 0.3], excite=0.0005)
+
+
+def ice_crack(size=0.0):
+    """A brittle snap. size 0 is a tiny crackle (ice cubes in a drink),
+    1 a big crack running through a sheet of ice."""
+    f = (4800 - 3900 * size) * rng.uniform(0.8, 1.25)
+    body = modes([f, f * 1.43, f * 2.07], [0.004 + 0.03 * size, 0.003 + 0.02 * size, 0.002 + 0.012 * size], [1, 0.6, 0.4], excite=0.0003 + 0.0008 * size)
+    ln = int((0.002 + 0.012 * size) * SR)
+    snap = hp(rng.standard_normal(ln), 700) * np.exp(-np.arange(ln) / (ln / 5))
+    out = np.zeros(max(len(body), ln) + 10)
+    place(out, 0.8 * norm(snap), 0)
+    place(out, 0.6 * body, 0)
+    place(out, 0.9 * n_wave(0.0002 + 0.0008 * size), 0)
+    return out
+
+
+def crackling(dur, rate, size=(0.0, 0.2)):
+    """Ice crackling: snaps at random moments. rate(k) is snaps per second
+    at k (0..1 through the sound)."""
+    out = np.zeros(int(dur * SR))
+    t = 0.0
+    while True:
+        t += rng.exponential(1 / max(1.0, rate(t / dur)))
+        if t >= dur:
+            return out
+        place(out, rng.uniform(0.15, 1) ** 1.5 * ice_crack(rng.uniform(*size)), t)
+
+
+def ice_creak(dur, f_from=90, f_to=55):
+    """Ice under stress: a stick-slip groan, irregular pulses ringing the
+    sheet's low modes."""
+    out = np.zeros(int(dur * SR))
+    t = 0.0
+    while t < dur:
+        out[int(t * SR)] = rng.uniform(0.5, 1)
+        t += 1 / (f_from * (f_to / f_from) ** (t / dur) * rng.uniform(0.8, 1.25))
+    y = resonator(out, 700, 60) + 0.6 * resonator(out, 1500, 90) + 0.3 * resonator(out, 2600, 150)
+    return norm(y) * np.sin(np.pi * np.arange(len(y)) / len(y)) ** 0.7
+
+
 def ice_cast():
-    """Frosty shimmer that flies across (~0.6 s)."""
+    """A cold whoosh while ice forms: crackles that speed up, little pieces
+    tinkling, then a crisp crack as the shard sets (~0.65 s)."""
     dur = 0.65
     n = int(dur * SR)
-    air = sweep_bp(noise(dur), 2500, 7000, width=0.8) * env_adsr(n, 0.08, 0.2, 0.7, 0.3, dur)
-    t = t_axis(dur)
-    shimmer = np.zeros(n)
-    for k, f in enumerate([1760, 2349, 2637, 3136, 3520, 4186]):
-        trem = 0.5 + 0.5 * np.sin(2 * np.pi * (9 + 3 * k) * t + k)
-        shimmer += np.sin(2 * np.pi * f * t) * trem
-    shimmer *= env_adsr(n, 0.12, 0.25, 0.5, 0.25, dur)
-    tinkle = crackles(dur, 40, 4000, 10000, 0.003)
-    return 0.8 * norm(air) + 0.45 * norm(shimmer) + 0.3 * norm(tinkle)
+    whoosh = sweep_bp(noise(dur), 700, 3200, width=1.1) * env_adsr(n, 0.12, 0.2, 0.7, 0.28, dur)
+    body = bp(noise(dur), 250, 900) * env_adsr(n, 0.1, 0.2, 0.5, 0.25, dur)
+    form = crackling(0.55, lambda k: 15 + 380 * k**2, size=(0.0, 0.15))
+    tinks = np.zeros(n)
+    for _ in range(14):
+        place(tinks, rng.uniform(0.3, 1) * ice_tink(rng.uniform(2500, 6500), rng.uniform(0.012, 0.035)), 0.05 + 0.45 * rng.random() ** 0.7)
+    out = 0.5 * norm(whoosh) + 0.15 * norm(body) + 0.3 * norm(tinks)
+    place(out, 0.6 * norm(form), 0)
+    place(out, 0.55 * ice_crack(0.35), 0.52)
+    for f in (2900, 3900, 5200):
+        place(out, 0.2 * ice_tink(f, 0.045), 0.525)
+    return room(out, decay=0.6, wet=0.22, bright=3500, tail=0.25)
 
 
 def ice_freeze():
-    """Thud on impact, then frost creaks and crackles over the camera (~0.9 s)."""
+    """The ice hits, then the camera freezes over: a crunchy impact,
+    crackling that rushes out and slows down, a few bigger cracks and a
+    groan of stressed ice (~0.95 s)."""
     dur = 0.95
     n = int(dur * SR)
     t = t_axis(dur)
-    f = 70 + 150 * np.exp(-t / 0.05)
-    thud = np.sin(2 * np.pi * np.cumsum(f) / SR) * exp_decay(n, 0.12)
-    crunch = bp(noise(dur), 1200, 5000) * exp_decay(n, 0.08)
-    frost = crackles(dur, 260, 2500, 9000, 0.0012) * env_adsr(n, 0.05, 0.3, 0.6, 0.35, dur)
-    # Creak: a narrow, slightly wobbling resonance.
-    creak = bp(noise(dur), 900, 1100, order=2) * (0.5 + 0.5 * np.sin(2 * np.pi * 23 * t))
-    creak *= env_adsr(n, 0.2, 0.3, 0.4, 0.3, dur)
-    return 1.0 * norm(thud) + 0.6 * norm(crunch) + 0.6 * norm(frost) + 0.25 * norm(creak)
+    out = np.zeros(n)
+    place(out, 1.0 * norm(ice_crack(1.0)), 0)
+    crunch = bp(noise(0.09), 1200, 9000) * exp_decay(int(0.09 * SR), 0.018)
+    thud = lp(noise(0.25), 280) * exp_decay(int(0.25 * SR), 0.05)
+    place(out, 0.7 * norm(crunch), 0)
+    place(out, 0.6 * norm(thud), 0)
+    spread = crackling(0.85, lambda k: 450 * np.exp(-3 * k) + 25, size=(0.0, 0.3))
+    spread *= np.exp(-np.arange(len(spread)) / (0.3 * SR))  # the ice settles
+    place(out, 0.8 * norm(spread), 0.02)
+    for at in sorted(rng.uniform(0.08, 0.7, 6)):
+        place(out, rng.uniform(0.35, 0.7) * np.exp(-at / 0.4) * norm(ice_crack(rng.uniform(0.45, 0.8))), at)
+    place(out, 0.2 * ice_creak(0.3), 0.35)
+    grain = lp((rng.random(n) < 0.25).astype(float), 3000)
+    frost = hp(noise(dur), 5000) * grain * np.exp(-t / 0.3)
+    out += 0.12 * norm(frost)
+    return room(out, decay=0.7, wet=0.22, bright=3500, tail=0.3)
 
 
 def glass_shatter(dur=1.0, pieces=26, low=1800, high=7500):
@@ -231,8 +341,31 @@ def glass_shatter(dur=1.0, pieces=26, low=1800, high=7500):
 
 
 def ice_shatter():
-    """The frozen camera cracks and breaks into falling shards (~1 s)."""
-    return glass_shatter()
+    """The frozen camera breaks: a big crack, shards flying off and
+    bouncing as they land, heavier chunks and fine debris (~1 s)."""
+    dur = 1.0
+    out = np.zeros(int(dur * SR))
+    place(out, 1.2 * norm(ice_crack(1.0)), 0)
+    place(out, 0.8 * norm(ice_crack(0.7)), 0.006)
+    place(out, 0.7 * norm(crackling(0.12, lambda k: 1500 * (1 - k) + 50, size=(0.1, 0.5))), 0.004)
+    shards = np.zeros(len(out))
+    for _ in range(40):
+        t0 = abs(rng.normal(0, 0.03))
+        f0, tau, a = rng.uniform(1800, 7500), rng.uniform(0.012, 0.045), rng.uniform(0.3, 1)
+        place(shards, a * ice_tink(f0, tau), t0)
+        if rng.random() < 0.6:  # it falls, lands and bounces
+            at, gap = t0 + rng.uniform(0.18, 0.45), rng.uniform(0.06, 0.12)
+            for b in range(rng.integers(1, 4)):
+                place(shards, a * 0.5 ** (b + 1) * ice_tink(f0 * rng.uniform(0.98, 1.02), tau * 0.8), at)
+                at, gap = at + gap, gap * 0.6
+    out += 0.6 * norm(shards)
+    for _ in range(7):
+        f = rng.uniform(350, 900)
+        chunk = modes([f, f * 1.7, f * 2.6], [0.03, 0.02, 0.012], [1, 0.6, 0.35], excite=0.002)
+        place(chunk, 0.5 * norm(bp(noise(0.04), 1000, 6000)) * np.exp(-np.arange(int(0.04 * SR)) / (0.006 * SR)), 0)
+        place(out, rng.uniform(0.25, 0.5) * norm(chunk), rng.uniform(0.2, 0.6))
+    out += 0.3 * norm(crackling(dur, lambda k: 250 * np.exp(-4 * k) + 10, size=(0.0, 0.1)))
+    return room(out, decay=0.7, wet=0.22, bright=3500, tail=0.3)
 
 
 # ---------------------------------------------------------------------------
@@ -240,58 +373,85 @@ def ice_shatter():
 # ---------------------------------------------------------------------------
 
 
+def electric_arc(dur, rate=110, flicker=0.0):
+    """A high-voltage arc: short discharges about `rate` times a second,
+    regular enough to give a clear 'bzzz' pitch, with a crackle on each
+    one. flicker: chance that a discharge drops out."""
+    n = int(dur * SR)
+    clicks = np.zeros(n)
+    pulses = np.zeros(n)
+    t = 0.0
+    while t < dur:
+        if rng.random() > flicker:
+            a = rng.uniform(0.6, 1)
+            pulses[int(t * SR)] = a
+            for _ in range(rng.integers(1, 3)):
+                ln = int(rng.uniform(0.0002, 0.0008) * SR) + 2
+                burst = rng.standard_normal(ln) * np.exp(-np.arange(ln) / (ln / 3))
+                place(clicks, burst * a * rng.uniform(0.4, 1), t + rng.uniform(0, 0.0008))
+        t += rng.uniform(0.93, 1.07) / rate
+    # Each discharge also rings the air/electrodes: that is the buzz tone.
+    buzz = resonator(pulses, 900, 500) + 0.7 * resonator(pulses, 2300, 700) + 0.4 * resonator(pulses, 4200, 900)
+    y = hp(0.9 * norm(buzz) + 0.6 * norm(clicks), 200)
+    return np.tanh(1.4 * norm(y))
+
+
 def lightning_strike():
-    """Static buzz building up (0.3 s), then a sharp crack and thunder (~1.8 s).
+    """A charging arc buzzes louder (0.3 s), then the bolt: a tearing crack
+    of shock waves, a boom and thunder that rolls away, with the arc
+    sizzling out (~2.4 s).
 
     The crack lands at 0.3 s, when the bolt hits.
     """
     pre = 0.3
     dur = 1.9
-    n = int(dur * SR)
-    t = t_axis(dur)
-    out = np.zeros(n)
+    out = np.zeros(int(dur * SR))
 
-    # Build-up: electric buzz (saw-ish 120 Hz harmonics) + sparks.
-    bn = int(pre * SR)
-    tb = t[:bn]
-    buzz = sum(np.sin(2 * np.pi * 120 * k * tb) / k for k in range(1, 18))
-    buzz = bp(buzz * (0.6 + 0.4 * np.sign(np.sin(2 * np.pi * 31 * tb))), 200, 4000)
-    buzz *= (tb / pre) ** 2
-    sparks = crackles(pre, 220, 2000, 9000, 0.0008) * (tb / pre)
-    out[:bn] += 0.35 * norm(buzz) + 0.35 * norm(sparks)
+    tc = t_axis(pre + 0.02)
+    place(out, 0.4 * electric_arc(pre + 0.02, rate=110) * np.clip(tc / pre, 0, 1) ** 2.5, 0)
 
-    # The crack: a very short, loud, bright transient with a few echoes.
-    for k, (dt, a) in enumerate([(0, 1), (0.018, 0.6), (0.045, 0.45), (0.09, 0.25)]):
-        ln = int(0.05 * SR)
-        c = hp(noise(0.05), 1200) * np.exp(-np.arange(ln) / (0.006 * SR))
-        place(out, a * 2.2 * c, pre + dt)
+    # The crack: shock waves from the nearby part of the bolt, arriving in a
+    # quick, tearing burst.
+    times = np.concatenate([[0, 0.004, 0.011], rng.exponential(0.07, 160)])
+    amps = (0.35 + 0.65 * rng.random(len(times))) * np.exp(-times / 0.12)
+    amps[:3] = [1, 0.8, 0.7]
+    durs = np.exp(rng.uniform(np.log(0.0004), np.log(0.006), len(times)))
+    durs[:3] = [0.0035, 0.002, 0.003]
+    crack = lp(pulse_train(0.7, times, amps, durs), 10000)
+    place(out, norm(crack), pre)
 
-    # Thunder: low rolling rumble with slow amplitude swells.
-    tn = n - bn
-    tt = np.arange(tn) / SR
-    rumble = lp(brown(tn / SR), 220) + 0.5 * lp(noise(tn / SR), 500)
-    swell = 0.6 + 0.4 * np.sin(2 * np.pi * 2.3 * tt + 1) * np.sin(2 * np.pi * 0.9 * tt)
-    rumble = norm(rumble) * swell * exp_decay(tn, 0.55) * np.clip(tt / 0.04, 0, 1)
-    out[bn:] += 0.9 * rumble
+    # Rolling thunder: shock waves from further along the bolt, arriving
+    # later and duller (the air takes the highs away).
+    rest = dur - pre
+    rt = 0.04 + rng.gamma(1.6, 0.3, 300)
+    roll = lp(pulse_train(rest, rt, rng.uniform(0.2, 1, len(rt)) * np.exp(-rt / 0.6), np.exp(rng.uniform(np.log(0.004), np.log(0.03), len(rt)))), 700)
+    tt = t_axis(rest)
+    s = lp(rng.standard_normal(len(tt)), 4)
+    swell = 0.6 + 0.4 * s / (np.max(np.abs(s)) + 1e-9)
+    # Phone speakers barely play below ~150 Hz, so the body sits at 100-400 Hz.
+    rumble = bp(brown(rest), 60, 320, order=2) * np.clip(tt / 0.03, 0, 1) * np.exp(-tt / 0.7)
+    boom = bp(noise(rest), 50, 220, order=2) * np.clip(tt / 0.004, 0, 1) * np.exp(-tt / 0.25)
+    place(out, 0.7 * norm(roll) * swell + 0.6 * norm(rumble) + 0.9 * norm(boom), pre)
 
-    # Zap tail: a quickly falling tone.
-    zn = int(0.25 * SR)
-    zf = 2400 * np.exp(-np.arange(zn) / SR / 0.05) + 200
-    zap = np.sign(np.sin(2 * np.pi * np.cumsum(zf) / SR)) * exp_decay(zn, 0.06)
-    place(out, 0.25 * lp(zap, 6000), pre)
-    return np.tanh(out * 1.3)
+    sizzle = electric_arc(0.5, rate=100, flicker=0.2) * exp_decay(int(0.5 * SR), 0.12)
+    place(out, 0.25 * sizzle, pre + 0.02)
+    # Saturating gives the low end harmonics a phone speaker can play.
+    out = fade(np.tanh(1.8 * norm(out)), fout=0.3)
+    return room(out, decay=1.8, wet=0.3, bright=3500, tail=0.5)
 
 
 def lightning_zap():
-    """Short electric discharge, for lightning clashes (~0.5 s)."""
+    """A short, flickering electric discharge with a few sharp snaps, for
+    lightning clashes (~0.75 s)."""
     dur = 0.55
     n = int(dur * SR)
-    t = t_axis(dur)
-    f = 90 + 40 * np.sin(2 * np.pi * 7 * t)
-    buzz = np.sign(np.sin(2 * np.pi * np.cumsum(f) / SR))
-    buzz = bp(buzz, 150, 5000) * env_adsr(n, 0.03, 0.2, 0.6, 0.25, dur)
-    sparks = crackles(dur, 300, 2000, 10000, 0.0008) * env_adsr(n, 0.01, 0.2, 0.7, 0.2, dur)
-    return 0.7 * norm(buzz) + 0.6 * norm(sparks)
+    arc = electric_arc(dur, rate=120, flicker=0.25) * env_adsr(n, 0.005, 0.12, 0.7, 0.2, dur)
+    snaps = np.zeros(n)
+    for at, a in [(0.0, 1), (0.12, 0.6), (0.27, 0.7)]:
+        times = at + np.concatenate([[0], rng.exponential(0.01, 6)])
+        snaps += pulse_train(dur, times, a * rng.uniform(0.3, 1, len(times)), rng.uniform(0.0006, 0.002, len(times)))
+    out = np.tanh(1.5 * (0.7 * norm(arc) + 0.8 * norm(snaps)))
+    return room(out, decay=0.6, wet=0.2, bright=6000, tail=0.2)
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +570,9 @@ VOWELS = {
     "o": (550, 900, 2700),
     "u": (380, 800, 2500),
     "e": (550, 1900, 2800),
+    "i": (320, 2400, 3100),
+    "l": (380, 1100, 2600),  # the 'l', glides into the next vowel
+    "m": (260, 1200, 2300),  # humming with the mouth shut
 }
 
 
@@ -455,104 +618,197 @@ def tone(dur, f, tau, harmonics=((1, 1), (2, 0.35), (3, 0.12)), attack=0.004):
     return out * np.clip(t / attack, 0, 1)
 
 
-def emote_send():
-    """Soft pop when you send an emote (~0.12 s)."""
-    dur = 0.14
-    t = t_axis(dur)
-    f = 380 + 900 * (t / dur) ** 0.6
-    pop = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.035) * np.clip(t / 0.003, 0, 1)
-    return pop
+def syl(dur, f0, vowel, scale=1.0, breath=0.1, attack=0.012, release=0.06, vib=0.0, vib_hz=6.5):
+    """One cartoon syllable. f0: (from, to) in Hz (log glide) or a function
+    of k (0..1). vowel: a VOWELS name, a (from, to) pair to glide between,
+    or a function of k returning formants. scale: >1 makes the character
+    smaller and squeakier."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    k = t / dur
+    f = f0(k) if callable(f0) else f0[0] * (f0[1] / f0[0]) ** k
+    f = f * (1 + vib * np.sin(2 * np.pi * vib_hz * t))
+    if isinstance(vowel, str):
+        shape = lambda q: VOWELS[vowel]
+    elif callable(vowel):
+        shape = vowel
+    else:
+        shape = lambda q: mix_vowel(vowel[0], vowel[1], q)
+    v = voice(f, lambda q: tuple(x * scale for x in shape(q)), breath=breath, blocks=max(6, int(dur * 70)))
+    env = np.clip(t / attack, 0, 1) * np.clip((dur - t) / release, 0, 1)
+    return norm(v) * env
+
+
+def breath_h(dur=0.05, lo=700, hi=3800):
+    """The 'h' in front of a syllable."""
+    return norm(bp(noise(dur), lo, hi)) * np.hanning(int(dur * SR))
+
+
+def sniff(dur=0.11):
+    """A quick snotty inhale, the hiss rising in pitch."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    return norm(sweep_bp(noise(dur), 1400, 4200, width=0.5, steps=12)) * np.sin(np.pi * t / dur) ** 1.5
+
+
+def snort(dur=0.17):
+    """A piggy snort: a slow, noisy buzz through the nose."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = 55 + 35 * np.sin(np.pi * t / dur)
+    ph = (np.cumsum(f) / SR) % 1
+    src = (ph < 0.18) - 0.18 + 0.8 * rng.standard_normal(n) * (ph < 0.35)
+    y = resonator(src, 420, 160) + 0.8 * resonator(src, 1150, 260) + 0.25 * norm(bp(noise(dur), 300, 2500))
+    return norm(y) * np.sin(np.pi * t / dur) ** 0.6
+
+
+def kettle(dur):
+    """Steam whistle, as if steam comes out of the angry character's ears."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = 2300 + 700 * (t / dur) ** 0.5 + 25 * np.sin(2 * np.pi * 9 * t)
+    whistle = np.sin(2 * np.pi * np.cumsum(f) / SR)
+    hiss = norm(hp(noise(dur), 4500))
+    return (0.8 * whistle + 0.3 * hiss) * np.clip(t / (0.6 * dur), 0, 1) * np.clip((dur - t) / 0.05, 0, 1)
+
+
+def slide_whistle(dur, f_from, f_to):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = f_from * (f_to / f_from) ** (t / dur) * (1 + 0.01 * np.sin(2 * np.pi * 6 * t))
+    x = np.sin(2 * np.pi * np.cumsum(f) / SR) + 0.06 * bp(noise(dur), 1500, 5000)
+    return x * np.sin(np.pi * t / dur) ** 0.4
+
+
+def kazoo(dur, f, vib=0.0):
+    """A buzzy kazoo note: a voice humming through a rattling membrane."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    freq = f * (1 + vib * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.08) / 0.1, 0, 1))
+    v = norm(voice(freq, lambda q: (520, 1500, 3100), breath=0.04, blocks=max(6, int(dur * 40))))
+    buzz = np.tanh(5 * v)
+    rasp = norm(hp(noise(dur), 2500) * np.abs(v))
+    y = bp(0.8 * buzz + 0.35 * rasp, 220, 7000)
+    tongue = np.zeros(n)  # the little 't' each note starts with
+    place(tongue, norm(bp(noise(0.012), 2000, 6000)) * np.hanning(int(0.012 * SR)), 0)
+    return y * env_adsr(n, 0.015, 0.05, 0.85, 0.05, dur) + 0.4 * tongue
+
+
+def party_horn(dur=0.32):
+    """Party blower unrolling: 'prrrrt' with a rising pitch."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f = 560 * 1.35 ** (t / dur)
+    saw = 2 * ((np.cumsum(f) / SR) % 1) - 1
+    flutter = 0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 32 * t))
+    y = lp(saw, 3500) * lp(flutter, 300) + 0.15 * bp(noise(dur), 1000, 5000)
+    return norm(y) * env_adsr(n, 0.01, 0.05, 0.9, 0.08, dur)
 
 
 def emote_hallo():
-    """Cheerful 'hi-hey' chime: two rising marimba notes and a sparkle (~0.6 s)."""
-    dur = 0.65
-    out = np.zeros(int(dur * SR))
-    place(out, tone(0.5, 784, 0.12), 0)  # G5
-    place(out, tone(0.5, 1175, 0.16), 0.11)  # D6
-    place(out, 0.35 * tone(0.4, 2349, 0.08, ((1, 1),)), 0.2)
-    voice_hey = voice(
-        np.linspace(520, 640, int(0.2 * SR)),
-        lambda k: mix_vowel("e", "e", k),
-        breath=0.15,
-    ) * np.sin(np.pi * np.linspace(0, 1, int(0.2 * SR))) ** 0.5
-    place(out, 0.5 * norm(voice_hey), 0.1)
+    """A sing-song 'Hal-looo!' from a little character, with a slide
+    whistle going up under the 'looo' (~0.75 s)."""
+    out = np.zeros(int(0.8 * SR))
+    place(out, 0.35 * breath_h(0.05), 0.0)
+    place(out, syl(0.13, (390, 440), "a", scale=1.2, breath=0.12), 0.035)
+    place(out, 0.95 * syl(
+        0.42,
+        lambda k: 470 * (1 + 0.38 * np.clip(k * 2.5, 0, 1) - 0.08 * np.clip((k - 0.75) / 0.25, 0, 1)),
+        lambda q: mix_vowel("l", "o", q / 0.18) if q < 0.18 else mix_vowel("o", "u", (q - 0.18) / 0.82),
+        scale=1.2, breath=0.1, attack=0.03, release=0.12, vib=0.025,
+    ), 0.17)
+    place(out, 0.22 * slide_whistle(0.36, 900, 1900), 0.18)
+    place(out, 0.25 * tone(0.3, 2349, 0.07, ((1, 1),)), 0.5)
     return out
 
 
 def emote_haha():
-    """Cartoon 'ha-ha-ha-ha', getting lower (~0.75 s)."""
-    syll, gap = 0.11, 0.155
-    count = 4
-    out = np.zeros(int((gap * count + 0.12) * SR))
-    for i in range(count):
-        n = int(syll * SR)
-        t = np.arange(n) / SR
-        f0 = (470 - 35 * i) * (1 + 0.06 * np.exp(-t / 0.03))
-        v = voice(f0 * np.ones(n), lambda k: VOWELS["a"], breath=0.12, blocks=6)
-        env = np.clip(t / 0.012, 0, 1) * np.exp(-t / 0.06)
-        h = bp(noise(0.03), 900, 4000) * np.hanning(int(0.03 * SR))
-        place(out, 0.25 * norm(h), gap * i)
-        place(out, norm(v) * env * (1 - 0.1 * i), gap * i + 0.02)
+    """A cheeky 'hee-hee-hee-hee' that ends in a piggy snort and one more
+    'hihi' (~1 s)."""
+    out = np.zeros(int(1.05 * SR))
+
+    def hee(at, f, amp=1.0, dur=0.075):
+        place(out, 0.3 * amp * breath_h(0.03, 1500, 5000), at)
+        place(out, amp * syl(dur, (f * 1.08, f), ("e", "i"), scale=1.35, breath=0.15, attack=0.006, release=0.03), at + 0.018)
+
+    for i in range(5):
+        hee(0.09 * i, 720 - 30 * i + (35 if i % 2 else 0))
+    place(out, 0.9 * snort(0.18), 0.5)
+    hee(0.74, 660, 0.8)
+    hee(0.83, 620, 0.7)
     return out
 
 
 def emote_boos():
-    """Grumpy growl 'grrr' with a stomp (~0.7 s)."""
-    dur = 0.7
+    """An angry growl 'grrrr', a stomp and a 'HMPF!', while steam whistles
+    out of their ears (~1.2 s)."""
+    out = np.zeros(int(1.2 * SR))
+    dur = 0.52
     n = int(dur * SR)
-    t = t_axis(dur)
-    f0 = 135 + 15 * np.sin(2 * np.pi * 3 * t) + 8 * rng.standard_normal(n).cumsum() / np.sqrt(n)
-    v = voice(f0, lambda k: mix_vowel("o", "u", k), breath=0.3)
-    rough = 0.55 + 0.45 * np.sign(np.sin(2 * np.pi * 28 * t))
-    v = norm(v) * lp(rough, 400) * env_adsr(n, 0.03, 0.1, 0.85, 0.2, dur)
-    f = 60 + 90 * np.exp(-t / 0.04)
-    stomp = np.sin(2 * np.pi * np.cumsum(f) / SR) * exp_decay(n, 0.09)
-    return np.tanh(1.6 * (0.9 * v + 0.7 * norm(stomp)))
+    t = np.arange(n) / SR
+    growl = syl(dur, lambda k: 140 + 45 * k + 10 * np.sin(2 * np.pi * 11 * k), ("o", "a"), breath=0.35, attack=0.03, release=0.05)
+    rolled = lp(0.45 + 0.55 * np.sign(np.sin(2 * np.pi * 27 * t)), 350)  # the rolling 'rrr'
+    place(out, np.tanh(2.2 * growl * rolled), 0.0)
+    f = 55 + 90 * np.exp(-t / 0.04)
+    place(out, 0.8 * np.sin(2 * np.pi * np.cumsum(f) / SR) * exp_decay(n, 0.09), 0.0)
+    # 'Hm' with the mouth shut, then the 'pf' bursts out.
+    place(out, 0.9 * syl(0.15, (230, 160), "m", breath=0.1, attack=0.005, release=0.03), 0.6)
+    puff = norm(bp(noise(0.09), 500, 3500)) * exp_decay(int(0.09 * SR), 0.025)
+    place(out, 0.75 * puff, 0.74)
+    place(out, 0.75 * np.sin(2 * np.pi * np.cumsum(55 + 70 * np.exp(-t / 0.03)) / SR) * exp_decay(n, 0.06), 0.6)
+    place(out, 0.22 * kettle(0.6), 0.55)
+    return out
 
 
 def emote_huilen():
-    """Wailing 'waaaah' with a wobble, dropping in pitch (~1 s)."""
-    dur = 1.0
-    n = int(dur * SR)
-    t = t_axis(dur)
-    f0 = (560 - 170 * (t / dur) ** 1.4) * (1 + 0.045 * np.sin(2 * np.pi * 7 * t))
-    v = voice(f0, lambda k: mix_vowel("u", "a", min(1, k * 4)) if k < 0.6 else mix_vowel("a", "u", (k - 0.6) / 0.4), breath=0.1)
-    v = norm(v) * env_adsr(n, 0.08, 0.2, 0.8, 0.3, dur)
-    return v
+    """Sobbing 'hu-hu' with snotty sniffs, a big wobbly 'bwaaaah' and a
+    sniffle at the end (~1.6 s)."""
+    out = np.zeros(int(1.6 * SR))
+    for at, f in [(0.0, 520), (0.24, 570)]:
+        place(out, 0.3 * breath_h(0.04), at)
+        place(out, 0.8 * syl(0.12, (f, f * 1.12), "u", scale=1.2, breath=0.18, attack=0.008, release=0.04), at + 0.025)
+        place(out, 0.5 * sniff(0.09), at + 0.15)
+    place(out, syl(
+        0.88,
+        lambda k: 690 - 260 * k ** 1.3,
+        lambda q: mix_vowel("u", "a", q / 0.15) if q < 0.15 else mix_vowel("a", "o", max(0, q - 0.6) / 0.4),
+        scale=1.2, breath=0.16, attack=0.04, release=0.2, vib=0.07, vib_hz=7.5,
+    ), 0.48)
+    place(out, 0.55 * sniff(0.08), 1.39)
+    place(out, 0.6 * sniff(0.1), 1.48)
+    return out
 
 
 def emote_gg():
-    """Little victory fanfare: C-E-G-C arpeggio into a chord (~0.9 s)."""
-    dur = 0.95
-    out = np.zeros(int(dur * SR))
-
-    def brass(d, f):
-        tt = t_axis(d)
-        saw = sum(np.sin(2 * np.pi * f * k * tt) / k for k in range(1, 12))
-        return lp(saw, 2600) * env_adsr(len(tt), 0.015, 0.08, 0.6, 0.08, d)
-
-    for i, f in enumerate([523, 659, 784]):
-        place(out, brass(0.12, f), 0.09 * i)
-    for f in [523, 659, 784, 1047]:
-        place(out, 0.5 * brass(0.6, f), 0.27)
-    place(out, 0.4 * tone(0.5, 2093, 0.15, ((1, 1),)), 0.27)
+    """A silly kazoo fanfare 'ta-ta-ta-taaaa' and a party blower (~1.3 s)."""
+    out = np.zeros(int(1.3 * SR))
+    for at, f in [(0.0, 392), (0.12, 523.25), (0.24, 659.25)]:
+        place(out, 0.8 * kazoo(0.1, f), at)
+    place(out, kazoo(0.55, 783.99, vib=0.025), 0.36)
+    place(out, 0.55 * party_horn(0.3), 0.95)
     return out
 
 
 def emote_goed():
-    """Short applause with a bright 'ding' (~1 s)."""
-    dur = 1.0
-    n = int(dur * SR)
-    out = np.zeros(n)
-    for _ in range(70):
-        at = rng.uniform(0, 0.75)
+    """An impressed 'Ooooh... WOW!' from a deep voice, then applause and a
+    ding (~1.35 s)."""
+    out = np.zeros(int(1.35 * SR))
+    place(out, 0.7 * syl(0.26, (190, 240), ("u", "o"), breath=0.12, attack=0.05, release=0.06), 0.0)
+    place(out, syl(
+        0.46,
+        lambda k: 240 + 190 * np.sin(np.pi * np.clip(k, 0, 1) ** 0.7),
+        lambda q: mix_vowel("u", "a", q / 0.3) if q < 0.3 else mix_vowel("a", "u", max(0, q - 0.65) / 0.35),
+        breath=0.12, attack=0.02, release=0.1, vib=0.015,
+    ), 0.27)
+    claps = np.zeros(int(0.9 * SR))
+    for _ in range(80):
         ln = int(0.03 * SR)
         clap = bp(noise(0.03), rng.uniform(800, 1400), rng.uniform(2500, 4500)) * np.exp(-np.arange(ln) / (0.006 * SR))
-        place(out, clap * rng.uniform(0.3, 1), at)
-    out = norm(out) * env_adsr(n, 0.05, 0.3, 0.7, 0.35, dur)
-    place(out, 0.7 * norm(tone(0.7, 1568, 0.25)), 0.0)
-    place(out, 0.5 * norm(tone(0.6, 2093, 0.2)), 0.08)
+        place(claps, clap * rng.uniform(0.3, 1), rng.uniform(0, 0.75))
+    claps = norm(claps) * env_adsr(len(claps), 0.1, 0.3, 0.7, 0.3, 0.9)
+    place(out, 0.45 * claps, 0.45)
+    place(out, 0.4 * norm(tone(0.6, 1568, 0.22)), 0.72)
+    place(out, 0.3 * norm(tone(0.5, 2093, 0.18)), 0.8)
     return out
 
 
@@ -625,6 +881,60 @@ def result_lose():
     return out
 
 
+# ---------------------------------------------------------------------------
+# Badges
+# ---------------------------------------------------------------------------
+
+# When the medal lands in the unlock overlay: 0.42 of its 1.8 s entrance
+# (lib/widgets/badges/badge_unlock_overlay.dart). Keep them in sync.
+BADGE_LAND = 0.42 * 1.8
+
+
+def badge_unlock():
+    """The medal spins in with a whoosh and a rising sparkle, then lands on
+    a big 'TA-DAAA': a boom, a bright brass chord, bells and glitter
+    (~2.4 s)."""
+    land = BADGE_LAND
+    dur = land + 1.65
+    n = int(dur * SR)
+    out = np.zeros(n)
+
+    # Spin-in: a whoosh that rises, pulsing slower as the spin slows down.
+    wn = int(land * SR)
+    wt = np.arange(wn) / SR
+    spin_rate = 14 - 9 * (wt / land)
+    pulse = 0.55 + 0.45 * np.sin(2 * np.pi * np.cumsum(spin_rate) / SR)
+    whoosh = sweep_bp(noise(land), 500, 5000, width=0.7) * pulse * (wt / land) ** 1.5
+    place(out, 0.5 * norm(whoosh), 0)
+    # Rising sparkle: a quick pentatonic run up to the landing.
+    run = [1047, 1175, 1319, 1568, 1760, 2093, 2349, 2637, 3136]
+    for i, f in enumerate(run):
+        at = 0.12 + (land - 0.16) * (i / (len(run) - 1)) ** 0.8
+        place(out, (0.12 + 0.12 * i / len(run)) * tone(0.25, f, 0.06, ((1, 1), (3, 0.15))), at)
+
+    # Landing: a short pickup note, then the chord.
+    place(out, 0.55 * brass_note(0.1, 783.99, bright=3600), land - 0.11)
+    c5, e5, g5, c6 = 523.25, 659.25, 783.99, 1046.5
+    for f, a in [(c6, 1), (g5, 0.7), (e5, 0.6), (c5, 0.55), (c5 / 2, 0.4)]:
+        place(out, 0.55 * a * brass_note(1.2, f, bright=3800, vibrato=0.006), land)
+    tl = np.arange(n - int(land * SR)) / SR
+    bf = 45 + 110 * np.exp(-tl / 0.05)
+    boom = np.sin(2 * np.pi * np.cumsum(bf) / SR) * np.exp(-tl / 0.25)
+    place(out, 0.8 * boom, land)
+    crash = hp(noise(1.4), 5000) * exp_decay(int(1.4 * SR), 0.45)
+    place(out, 0.25 * norm(crash), land)
+    for f, a in [(2093, 1), (2637, 0.7), (3136, 0.6)]:
+        place(out, 0.3 * a * tone(1.2, f, 0.35, ((1, 1), (2.76, 0.2))), land)
+    # Glitter falling around the medal.
+    for _ in range(26):
+        at = land + 0.05 + rng.exponential(0.35)
+        if at > dur - 0.2:
+            continue
+        f = rng.uniform(3000, 7000)
+        place(out, rng.uniform(0.04, 0.12) * tone(0.2, f, 0.04, ((1, 1),)), at)
+    return out
+
+
 SOUNDS = {
     "fire_cast": fire_cast,
     "fire_explode": fire_explode,
@@ -639,7 +949,6 @@ SOUNDS = {
     "shield_bash": shield_bash,
     "shield_double": shield_double,
     "clash_struggle": clash_struggle,
-    "emote_send": emote_send,
     "emote_hallo": emote_hallo,
     "emote_haha": emote_haha,
     "emote_boos": emote_boos,
@@ -648,6 +957,7 @@ SOUNDS = {
     "emote_goed": emote_goed,
     "result_win": result_win,
     "result_lose": result_lose,
+    "badge_unlock": badge_unlock,
 }
 
 if __name__ == "__main__":

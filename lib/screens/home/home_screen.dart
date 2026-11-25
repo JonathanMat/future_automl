@@ -17,6 +17,7 @@ import '../../widgets/home/badge_shelf.dart';
 import '../../widgets/home/join_room_row.dart';
 import '../../widgets/home/profile_header.dart';
 import '../../widgets/home/recent_duel_card.dart';
+import '../../widgets/home/rules_shelf.dart';
 import '../../widgets/home/spell_hero_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -65,8 +66,6 @@ class HomeScreen extends StatelessWidget {
               onJoin: (code) => RoomFlow.join(context, code),
             ),
             const SizedBox(height: 20),
-            SpellRulesCard(config: game.state.config),
-            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
@@ -89,6 +88,8 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            RulesShelf(config: game.state.config),
             const SizedBox(height: 12),
             BadgeShelf(
               profile: profile,
