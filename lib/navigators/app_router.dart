@@ -11,6 +11,7 @@ import '../screens/home/home_screen.dart';
 import '../screens/leaderboard/leaderboard_screen.dart';
 import '../screens/lobby/lobby_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
+import '../screens/profile/profile_screen.dart';
 import '../screens/result/result_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/tournament/tournament_screen.dart';
@@ -31,6 +32,7 @@ abstract final class AppRoutes {
   static const fxPreview = '/effecten';
   static const badges = '/badges';
   static const tournament = '/toernooi';
+  static const profile = '/profiel';
 }
 
 /// Named routes for the whole app.
@@ -62,6 +64,14 @@ class AppRouter {
       case AppRoutes.badges:
         return MaterialPageRoute(
           builder: (_) => const BadgesScreen(),
+          settings: settings,
+        );
+      case AppRoutes.profile:
+        final args = settings.arguments;
+        return MaterialPageRoute(
+          builder: (_) => ProfileScreen(
+            args: args is ProfileArgs ? args : const ProfileArgs(name: ''),
+          ),
           settings: settings,
         );
       case AppRoutes.tournament:

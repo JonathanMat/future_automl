@@ -10,6 +10,7 @@ import '../../../utils/db_values.dart';
 import '../../../utils/player_tag.dart';
 import '../commit_reveal.dart';
 import '../game_backend.dart';
+import 'audio_session.dart';
 import 'ice_config.dart';
 import 'webrtc_call.dart';
 
@@ -72,6 +73,10 @@ class FirebaseGameBackend implements GameBackend {
   /// one in the room, when you join).
   static const _emoteMaxAge = Duration(seconds: 5);
 
+  /// About the lobby's page transition (see [_enterRoom]).
+  static const _connectDelay = Duration(milliseconds: 350);
+  Timer? _connectTimer;
+
   String? _uid;
   String? _code;
   bool _isHost = false;
@@ -112,18 +117,66 @@ class FirebaseGameBackend implements GameBackend {
   @override
   MediaStream? get localStream => _call?.localStream;
 
+  /// Opened by [openCamera] and handed to the next call.
+  MediaStream? _warmStream;
+  bool _warmAudio = false;
+
+  @override
+  Future<void> openCamera() async {
+    // One camera at a time: some phones can't open the front camera twice.
+    await _leaveIfInRoom();
+    if (_warmStream != null && _warmAudio == voiceChat) return;
+    await _releaseWarm();
+    _warmStream = await WebRtcCall.openLocalStream(audio: voiceChat);
+    _warmAudio = voiceChat;
+  }
+
+  /// The warmed-up stream for a new call, if it matches its audio setting.
+  Future<MediaStream?> _takeWarm() async {
+    final s = _warmStream;
+    if (s == null) return null;
+    if (_warmAudio != voiceChat) {
+      await _releaseWarm();
+      return null;
+    }
+    _warmStream = null;
+    return s;
+  }
+
+  Future<void> _releaseWarm() async {
+    final s = _warmStream;
+    _warmStream = null;
+    if (s == null) return;
+    for (final track in s.getTracks()) {
+      await track.stop();
+    }
+    await s.dispose();
+    // Opening the mic put Android in call mode: switch back.
+    if (_warmAudio) await AudioSession.release();
+  }
+
   @override
   Stream<MediaStream?> get remoteStream => _remoteCtl.stream;
 
   @override
   Future<String> createRoom({required String playerName}) async {
+    try {
+      return await _createRoom(playerName);
+    } catch (_) {
+      await _releaseWarm();
+      rethrow;
+    }
+  }
+
+  Future<String> _createRoom(String playerName) async {
     await _leaveIfInRoom();
     final uid = await _signIn();
 
     for (var attempt = 0; attempt < 10; attempt++) {
       final code = _newCode();
       final ref = _db.ref('rooms/$code');
-      if ((await ref.get()).exists) continue;
+      // No get() first: the rules refuse a code someone else uses, which
+      // saves a round trip before the lobby opens.
       try {
         await ref.set({
           'hostUid': uid,
@@ -134,7 +187,7 @@ class FirebaseGameBackend implements GameBackend {
           'players': {uid: _newPlayer(playerName)},
         });
       } on FirebaseException catch (e) {
-        // Someone took this code between get() and set(): try another one.
+        // Someone else's room has this code: try another one.
         if (e.code == 'permission-denied') continue;
         rethrow;
       }
@@ -146,6 +199,15 @@ class FirebaseGameBackend implements GameBackend {
 
   @override
   Future<void> joinRoom(String code, {required String playerName}) async {
+    try {
+      await _joinRoom(code, playerName);
+    } catch (_) {
+      await _releaseWarm();
+      rethrow;
+    }
+  }
+
+  Future<void> _joinRoom(String code, String playerName) async {
     await _leaveIfInRoom();
     final uid = await _signIn();
     code = code.trim().toUpperCase();
@@ -285,6 +347,7 @@ class FirebaseGameBackend implements GameBackend {
   @override
   Future<void> dispose() async {
     await leaveRoom();
+    await _releaseWarm();
     await _stateCtl.close();
     await _remoteCtl.close();
     await _emoteCtl.close();
@@ -345,6 +408,7 @@ class FirebaseGameBackend implements GameBackend {
       isCaller: isHost,
       ice: ice,
       audio: voiceChat,
+      localStream: await _takeWarm(),
     );
     _subs.add(call.remoteStream.listen(_remoteCtl.add));
     _subs.add(
@@ -354,14 +418,20 @@ class FirebaseGameBackend implements GameBackend {
       }),
     );
     await call.openCamera();
-    // The guest needs the offer, which the host writes right away.
-    unawaited(
-      call.connect().catchError((Object e) {
-        debugPrint('WebRTC connect failed: $e');
-        _callStatus = CallStatus.failed;
-        _recompute(force: true);
-      }),
-    );
+    // Setting up the peer connection is heavy: start it once the lobby has
+    // slid in, so the page transition stays smooth. The guest needs the
+    // offer, which the host writes right after.
+    _connectTimer?.cancel();
+    _connectTimer = Timer(_connectDelay, () {
+      if (_call != call) return; // left already
+      unawaited(
+        call.connect().catchError((Object e) {
+          debugPrint('WebRTC connect failed: $e');
+          _callStatus = CallStatus.failed;
+          _recompute(force: true);
+        }),
+      );
+    });
 
     _subs.add(
       ref.onValue.listen(
@@ -394,6 +464,8 @@ class FirebaseGameBackend implements GameBackend {
   Future<void> _cleanup() async {
     _ticker?.cancel();
     _ticker = null;
+    _connectTimer?.cancel();
+    _connectTimer = null;
     for (final sub in _subs) {
       await sub.cancel();
     }

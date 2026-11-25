@@ -16,11 +16,19 @@ import 'podium.dart';
 ///   fade in.
 /// - players that are gone shrink down and disappear.
 class AnimatedBoard extends StatefulWidget {
-  const AnimatedBoard({super.key, required this.entries, required this.isMe});
+  const AnimatedBoard({
+    super.key,
+    required this.entries,
+    required this.isMe,
+    this.onTap,
+  });
 
   /// Sorted, best first.
   final List<LeaderboardEntry> entries;
   final bool Function(LeaderboardEntry) isMe;
+
+  /// A player was tapped (to open their profile).
+  final void Function(LeaderboardEntry)? onTap;
 
   @override
   State<AnimatedBoard> createState() => _AnimatedBoardState();
@@ -149,6 +157,9 @@ class _AnimatedBoardState extends State<AnimatedBoard> {
                     isMe: !item.leaving && widget.isMe(item.entry),
                     duration: _move,
                     rowWidth: width,
+                    onTap: item.leaving || widget.onTap == null
+                        ? null
+                        : () => widget.onTap!(item.entry),
                   ),
               ],
             ),
@@ -167,9 +178,11 @@ class _BoardTile extends StatefulWidget {
     required this.isMe,
     required this.duration,
     required this.rowWidth,
+    this.onTap,
   });
 
   final _Item item;
+  final VoidCallback? onTap;
 
   /// Rows are laid out at full width and clipped, so they don't squash
   /// while their tile is still narrow (moving off the podium).
@@ -221,6 +234,7 @@ class _BoardTileState extends State<_BoardTile> {
                 entry: item.entry,
                 rank: item.rank,
                 contentOpacity: visible ? 1 : 0,
+                onTap: widget.onTap,
               )
             : AnimatedOpacity(
                 key: const ValueKey('row'),
@@ -240,6 +254,7 @@ class _BoardTileState extends State<_BoardTile> {
                       wins: item.entry.wins,
                       losses: item.entry.losses,
                       isMe: widget.isMe,
+                      onTap: widget.onTap,
                     ),
                   ),
                 ),

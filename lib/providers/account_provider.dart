@@ -6,7 +6,13 @@ import '../services/auth/account_service.dart';
 
 /// Guest or Google account, for the settings screen.
 class AccountProvider extends ChangeNotifier {
-  AccountProvider(this.service, {this.onUserChanged, this.beforeSignOut}) {
+  AccountProvider(
+    this.service, {
+    this.onUserChanged,
+    this.beforeSignOut,
+    this.deleteData,
+    this.onDeleted,
+  }) {
     _info = service.current;
     _lastUid = _info.uid;
     _sub = service.changes.listen(_onChange);
@@ -20,6 +26,12 @@ class AccountProvider extends ChangeNotifier {
 
   /// Runs while the old user is still signed in (e.g. remove push token).
   final Future<void> Function()? beforeSignOut;
+
+  /// Deletes this user's data on the server, while still signed in.
+  final Future<void> Function()? deleteData;
+
+  /// After the account is gone: forget everything on this phone.
+  final Future<void> Function()? onDeleted;
 
   late AccountInfo _info;
 
@@ -64,6 +76,22 @@ class AccountProvider extends ChangeNotifier {
     await beforeSignOut?.call();
     await service.signOut();
     return 'Uitgelogd. Je speelt nu als gast.';
+  });
+
+  /// Deletes the account and all its data, on the server and on this
+  /// phone. Returns null when the Google confirmation was canceled.
+  Future<String?> deleteAccount() => _run(() async {
+    final deleted = await service.deleteAccount(
+      deleteData: () async {
+        await beforeSignOut?.call();
+        await deleteData?.call();
+      },
+    );
+    if (!deleted) return null;
+    // The next sign-in is a brand new guest, not a switch of account.
+    _lastUid = null;
+    await onDeleted?.call();
+    return 'Je account is verwijderd.';
   });
 
   Future<String?> _run(Future<String?> Function() action) async {

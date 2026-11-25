@@ -36,6 +36,12 @@ abstract class GameBackend {
   /// Throws [GameBackendException] if the room is missing or full.
   Future<void> joinRoom(String code, {required String playerName});
 
+  /// Opens the camera (and the microphone when [voiceChat] is on) ahead of
+  /// [createRoom] or [joinRoom], which then use this same stream. Doubles
+  /// as the permission check, so the camera opens only once. Throws the
+  /// `getUserMedia` error when it can't open.
+  Future<void> openCamera();
+
   /// This phone's camera. Show it with an `RTCVideoRenderer`.
   /// Null until [createRoom] or [joinRoom] finished.
   MediaStream? get localStream;

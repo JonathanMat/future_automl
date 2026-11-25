@@ -391,7 +391,7 @@ void main() {
       expect(find.text('Uitdaging'), findsNothing);
     });
 
-    testWidgets('tapping a friend opens their sheet with remove', (
+    testWidgets('tapping a friend opens their profile with remove', (
       tester,
     ) async {
       final profile = await profileWith({});
@@ -408,15 +408,35 @@ void main() {
         find.textContaining('Vriend ABC234', findRichText: true),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Profiel'), findsOneWidget);
+      expect(find.text('VRIEND'), findsOneWidget);
       expect(find.text('DUEL VRIEND ABC234'), findsOneWidget);
       expect(find.text('Verwijder als vriend'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Snelste spreuk'), 200);
+      expect(find.text('HOOGTEPUNTEN'), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
+      await tester.scrollUntilVisible(find.text('Verwijder als vriend'), -200);
       await tester.tap(find.text('Verwijder als vriend'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Verwijderen'));
       await tester.pumpAndSettle();
       expect(find.text('Vriend ABC234 is geen vriend meer.'), findsOneWidget);
       expect(find.textContaining('Nog geen vrienden.'), findsOneWidget);
+    });
+
+    testWidgets('tapping your name on home opens your profile', (tester) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.textContaining('Jonathan', findRichText: true));
+      await tester.pumpAndSettle();
+      expect(find.text('Jouw profiel'), findsOneWidget);
+      expect(find.text('JIJ'), findsOneWidget);
+      expect(find.text('RECORD'), findsOneWidget);
+      expect(find.text('Verwijder als vriend'), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('the voice chat setting reaches the game backend', (
@@ -447,6 +467,32 @@ void main() {
       await profile.setName('Lotte');
       await tester.pump();
       expect(find.widgetWithText(TextFormField, 'Lotte'), findsOneWidget);
+    });
+
+    testWidgets('deleting the account goes back to the welcome screen', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.byTooltip('Instellingen'));
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+      expect(find.text('Statistieken wissen'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Account verwijderen'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Account verwijderen'));
+      await tester.pumpAndSettle();
+      expect(find.text('Account verwijderen?'), findsOneWidget);
+
+      await tester.tap(find.text('Verwijderen'));
+      await _pumpFor(tester, const Duration(milliseconds: 800));
+      expect(find.text('AAN DE SLAG'), findsOneWidget);
+      expect(find.text('Je account is verwijderd.'), findsOneWidget);
+      expect(profile.profile.hasName, isFalse);
     });
 
     testWidgets('a bad room code shows a validation error', (tester) async {

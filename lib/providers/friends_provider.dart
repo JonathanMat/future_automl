@@ -241,20 +241,29 @@ class FriendsProvider extends ChangeNotifier {
     }
   }
 
-  /// Resets your scorebord entry, e.g. after "Statistieken wissen".
-  Future<void> resetServerStats() async {
-    if (!isReady) return;
-    try {
-      await backend.resetStats();
-    } catch (e) {
-      debugPrint('resetStats: $e');
-    }
+  /// Deletes everything of this player on the server (see
+  /// [FriendsBackend.deleteMyData]). Signs in first if needed, so a
+  /// player who was offline until now is cleaned up too.
+  Future<void> deleteServerData() async {
+    if (!isReady) await connect();
+    if (!isReady) throw FriendsException(_error ?? 'Geen verbinding.');
+    await backend.deleteMyData();
   }
 
   /// Drops everything and signs in again, e.g. after switching account.
   Future<void> restart() async {
+    await forget();
+    _adoptRemote = true;
+    await connect();
+  }
+
+  /// Drops the signed-in player without signing in again, e.g. after the
+  /// account was deleted. The next name set on the profile signs in fresh.
+  Future<void> forget() async {
+    // Not awaited: a stream that is still busy (e.g. a mock generator)
+    // may only finish canceling later, and nothing here needs to wait.
     for (final s in _subs) {
-      await s.cancel();
+      unawaited(s.cancel());
     }
     _subs.clear();
     _identity = null;
@@ -263,11 +272,11 @@ class FriendsProvider extends ChangeNotifier {
     _myStats = null;
     _sent.clear();
     _error = null;
+    _syncedName = null;
     _syncedProgress = null;
     _syncedRecent = null;
-    _adoptRemote = true;
+    _adoptRemote = false;
     _notify();
-    await connect();
   }
 
   void _listen() {

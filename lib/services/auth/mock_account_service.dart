@@ -30,6 +30,19 @@ class MockAccountService implements AccountService {
   @override
   Future<void> signOut() async => _set(const AccountInfo(uid: 'mock-me'));
 
+  /// Set by [deleteAccount] (for tests).
+  bool deleted = false;
+
+  @override
+  Future<bool> deleteAccount({
+    required Future<void> Function() deleteData,
+  }) async {
+    await deleteData();
+    deleted = true;
+    _set(const AccountInfo());
+    return true;
+  }
+
   void _set(AccountInfo info) {
     _current = info;
     _ctl.add(info);

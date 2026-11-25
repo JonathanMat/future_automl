@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -46,6 +47,8 @@ const _cameraOn = String.fromEnvironment('CAMERA', defaultValue: 'on') != 'off';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Portrait only: the duel layout (two camera feeds stacked) needs it.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final GameBackend backend;
   final FriendsBackend friends;
   final AccountService account;
@@ -169,6 +172,19 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
     widget.account ?? MockAccountService(),
     onUserChanged: _friends.restart,
     beforeSignOut: _challenges.unregisterPush,
+    deleteData: () async {
+      try {
+        await _friends.deleteServerData();
+      } on FriendsException catch (e) {
+        throw AccountException(
+          'Je gegevens verwijderen lukte niet: ${e.message}',
+        );
+      }
+    },
+    onDeleted: () async {
+      await _friends.forget();
+      await widget.profile.wipe();
+    },
   );
 
   @override

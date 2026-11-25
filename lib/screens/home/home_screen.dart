@@ -7,6 +7,7 @@ import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/tournament_provider.dart';
+import '../profile/profile_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/friends/challenge_banner.dart';
@@ -52,6 +53,7 @@ class HomeScreen extends StatelessWidget {
               tag: context.select<FriendsProvider, String?>((f) => f.myTag),
               onSettings: () =>
                   Navigator.of(context).pushNamed(AppRoutes.settings),
+              onOpen: () => ProfileScreen.open(context, name: profile.name),
             ),
             const SizedBox(height: 20),
             const ChallengeBanner(padding: EdgeInsets.only(bottom: 20)),

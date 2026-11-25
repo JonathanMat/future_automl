@@ -119,6 +119,7 @@ class GameProvider extends ChangeNotifier {
   Future<bool> _checkCamera() async {
     _mediaAccess = await cameraPermission.ensureAccess(
       withMicrophone: backend.voiceChat,
+      open: backend.openCamera,
     );
     final message = _cameraMessage(_mediaAccess);
     if (message != null) _actionError = message;

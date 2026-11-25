@@ -20,6 +20,7 @@ class PodiumStep extends StatelessWidget {
     required this.entry,
     required this.rank,
     this.contentOpacity = 1,
+    this.onTap,
   });
 
   final LeaderboardEntry entry;
@@ -27,6 +28,9 @@ class PodiumStep extends StatelessWidget {
 
   /// Avatar and name fade in for players that are new on this tab.
   final double contentOpacity;
+
+  /// Opens the player's profile.
+  final VoidCallback? onTap;
 
   /// Includes [_ringRoom] above the avatar: its ring is drawn 5px outside
   /// the avatar box and would otherwise be clipped.
@@ -47,82 +51,88 @@ class PodiumStep extends StatelessWidget {
           'Plaats $rank: ${PlayerTag.withName(entry.name, entry.tag)}, '
           '${entry.wins} wins',
       excludeSemantics: true,
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final bar = math.max(0.0, box.maxHeight - headerHeight);
-          return ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.bottomCenter,
-              minHeight: headerHeight + bar,
-              maxHeight: headerHeight + bar,
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: headerHeight,
-                    child: AnimatedOpacity(
-                      opacity: contentOpacity,
-                      duration: const Duration(milliseconds: 300),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: _ringRoom),
-                          AvatarTile(
-                            name: entry.name,
-                            size: 52,
-                            circle: true,
-                            ringColor: ring,
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            height: 20,
-                            child: PlayerName(
+      button: onTap != null,
+      onTap: onTap,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final bar = math.max(0.0, box.maxHeight - headerHeight);
+            return ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.bottomCenter,
+                minHeight: headerHeight + bar,
+                maxHeight: headerHeight + bar,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: headerHeight,
+                      child: AnimatedOpacity(
+                        opacity: contentOpacity,
+                        duration: const Duration(milliseconds: 300),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: _ringRoom),
+                            AvatarTile(
                               name: entry.name,
-                              style: AppTextStyles.body(
-                                14,
-                                weight: FontWeight.w900,
+                              size: 52,
+                              circle: true,
+                              ringColor: ring,
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 20,
+                              child: PlayerName(
+                                name: entry.name,
+                                style: AppTextStyles.body(
+                                  14,
+                                  weight: FontWeight.w900,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          SizedBox(
-                            height: 16,
-                            child: Text(
-                              [
-                                if (entry.tag != null)
-                                  PlayerTag.format(entry.tag),
-                                '${entry.wins} wins',
-                              ].join(' · '),
-                              style: AppTextStyles.caption(),
+                            SizedBox(
+                              height: 16,
+                              child: Text(
+                                [
+                                  if (entry.tag != null)
+                                    PlayerTag.format(entry.tag),
+                                  '${entry.wins} wins',
+                                ].join(' · '),
+                                style: AppTextStyles.caption(),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-                    width: double.infinity,
-                    height: bar,
-                    padding: const EdgeInsets.only(top: 8),
-                    alignment: Alignment.topCenter,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                        bottom: Radius.circular(6),
+                    Container(
+                      width: double.infinity,
+                      height: bar,
+                      padding: const EdgeInsets.only(top: 8),
+                      alignment: Alignment.topCenter,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                          bottom: Radius.circular(6),
+                        ),
+                        border: Border(top: BorderSide(color: ring, width: 3)),
                       ),
-                      border: Border(top: BorderSide(color: ring, width: 3)),
+                      child: bar > 36
+                          ? Text(
+                              '$rank',
+                              style: AppTextStyles.display(28, color: ring),
+                            )
+                          : null,
                     ),
-                    child: bar > 36
-                        ? Text(
-                            '$rank',
-                            style: AppTextStyles.display(28, color: ring),
-                          )
-                        : null,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

@@ -72,8 +72,18 @@ class LocalStorageService {
   Future<void> saveSoundEffects(bool value) async =>
       (await _p).setBool(AppConstants.soundEffectsKey, value);
 
-  Future<void> clearStats() async {
+  /// Removes everything this app stored: profile, recent opponents and
+  /// settings.
+  Future<void> clearAll() async {
     final p = await _p;
-    await p.remove(AppConstants.friendsKey);
+    for (final key in [
+      AppConstants.profileKey,
+      AppConstants.friendsKey,
+      AppConstants.shareVideoKey,
+      AppConstants.voiceChatKey,
+      AppConstants.soundEffectsKey,
+    ]) {
+      await p.remove(key);
+    }
   }
 }

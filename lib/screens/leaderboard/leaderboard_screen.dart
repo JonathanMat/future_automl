@@ -17,6 +17,7 @@ import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/screen_header.dart';
 import '../../widgets/leaderboard/animated_board.dart';
 import '../../widgets/leaderboard/segmented_tabs.dart';
+import '../profile/profile_screen.dart';
 
 /// Ranking by wins. "Global" is the top of everyone on the server,
 /// "Vrienden" is you and your accepted friends (see [FriendsProvider]).
@@ -114,7 +115,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     if (global == null) return const _Loading();
     if (global.isEmpty) return const _Message('Nog niemand op het scorebord.');
     final entries = [...global]..sort((a, b) => b.wins.compareTo(a.wins));
-    return AnimatedBoard(entries: entries, isMe: isMe);
+    return AnimatedBoard(entries: entries, isMe: isMe, onTap: _open);
   }
 
   Widget _friendsBoard(
@@ -132,8 +133,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         'Voeg vrienden toe via de Vrienden-pagina.',
       );
     }
-    return AnimatedBoard(entries: social.board, isMe: isMe);
+    return AnimatedBoard(entries: social.board, isMe: isMe, onTap: _open);
   }
+
+  void _open(LeaderboardEntry e) => ProfileScreen.open(
+    context,
+    uid: e.uid.isEmpty ? null : e.uid,
+    name: e.name,
+    tag: e.tag,
+    wins: e.wins,
+    losses: e.losses,
+  );
 }
 
 class _Loading extends StatelessWidget {

@@ -206,13 +206,15 @@ class ProfileProvider extends ChangeNotifier {
     await _storage.saveFriends(_friends);
   }
 
-  /// Clears XP, record and recent opponents. Keeps the name and the
-  /// friends on the server.
-  Future<void> resetStats() async {
-    _profile = PlayerProfile(name: _profile.name);
+  /// Forgets everything on this phone: name, XP, record, badges, recent
+  /// opponents and settings. Used after deleting the account.
+  Future<void> wipe() async {
+    _profile = const PlayerProfile();
     _friends = const [];
+    _shareVideo = true;
+    _voiceChat = true;
+    _soundEffects = true;
     notifyListeners();
-    await _storage.saveProfile(_profile);
-    await _storage.clearStats();
+    await _storage.clearAll();
   }
 }

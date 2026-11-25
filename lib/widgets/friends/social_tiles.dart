@@ -8,7 +8,6 @@ import '../generic/avatar_tile.dart';
 import '../generic/chunky_button.dart';
 import '../generic/crossed_swords_icon.dart';
 import '../generic/player_name.dart';
-import 'friend_sheet.dart';
 
 /// Avatar, name, subtitle and trailing actions in a rounded row.
 class _PlayerRow extends StatelessWidget {
@@ -86,18 +85,20 @@ class _Spinner extends StatelessWidget {
   );
 }
 
-/// A confirmed friend with their overall record and a remove action.
+/// A confirmed friend with their overall record. Tap for their profile.
 class ServerFriendTile extends StatelessWidget {
   const ServerFriendTile({
     super.key,
     required this.friend,
-    required this.onRemove,
+    required this.onOpen,
     this.onChallenge,
     this.busy = false,
   });
 
   final Friend friend;
-  final VoidCallback onRemove;
+
+  /// Opens the friend's profile (with "Verwijder als vriend").
+  final VoidCallback onOpen;
 
   /// Null disables the duel button (e.g. while a room is opening).
   final VoidCallback? onChallenge;
@@ -112,15 +113,7 @@ class ServerFriendTile extends StatelessWidget {
       subtitle: games == 0
           ? 'Nog geen duels gespeeld'
           : '${friend.wins} gewonnen · ${friend.losses} verloren',
-      // Tap the row for their record and "Verwijder als vriend".
-      onTap: busy
-          ? null
-          : () => showFriendSheet(
-              context,
-              friend: friend,
-              onChallenge: onChallenge,
-              onRemove: onRemove,
-            ),
+      onTap: busy ? null : onOpen,
       trailing: busy
           ? const _Spinner()
           : SizedBox(
