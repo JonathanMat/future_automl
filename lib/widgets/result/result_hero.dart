@@ -25,12 +25,16 @@ class ResultHero extends StatefulWidget {
     required this.opponentName,
     required this.rounds,
     this.playSound = true,
+    this.offerRematch = true,
   });
 
   final bool won;
   final String opponentName;
   final int rounds;
   final bool playSound;
+
+  /// False in a tournament: there is no rematch.
+  final bool offerRematch;
 
   /// When the notes start, in seconds. Must match `WIN_NOTES` and
   /// `LOSE_NOTES` in `tool/gen_sfx.py`.
@@ -175,7 +179,7 @@ class _ResultHeroState extends State<ResultHero>
                 child: Text(
                   won
                       ? 'Je versloeg $name in $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.'
-                      : '$name won na $rounds ${rounds == 1 ? 'ronde' : 'rondes'}. Revanche?',
+                      : '$name won na $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.${widget.offerRematch ? ' Revanche?' : ''}',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.body(
                     15,

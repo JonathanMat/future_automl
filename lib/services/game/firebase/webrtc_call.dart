@@ -60,8 +60,9 @@ class WebRtcCall {
       'audio': audio,
       'video': {
         'facingMode': 'user',
-        'width': {'ideal': 640},
-        'height': {'ideal': 480},
+        // 720p: the feed fills a large part of the screen, 480p looked soft.
+        'width': {'ideal': 1280},
+        'height': {'ideal': 720},
         'frameRate': {'ideal': 24},
       },
     });
@@ -95,6 +96,7 @@ class WebRtcCall {
       switch (state) {
         case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
           _statusCtl.add(CallStatus.connected);
+          unawaited(_keepVideoSharp());
         case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
           _statusCtl.add(CallStatus.failed);
           // Often a network switch (wifi → 4G): try again.
@@ -138,6 +140,28 @@ class WebRtcCall {
           });
         }),
       );
+    }
+  }
+
+  /// Under CPU or network load WebRTC lowers the camera resolution by
+  /// default, which also makes the own preview blurry (it shows the same
+  /// source). Prefer dropping frames instead, and allow a higher bitrate.
+  Future<void> _keepVideoSharp() async {
+    final pc = _pc;
+    if (pc == null) return;
+    try {
+      for (final sender in await pc.getSenders()) {
+        if (sender.track?.kind != 'video') continue;
+        final params = sender.parameters;
+        params.degradationPreference =
+            RTCDegradationPreference.MAINTAIN_RESOLUTION;
+        for (final encoding in params.encodings ?? const <RTCRtpEncoding>[]) {
+          encoding.maxBitrate = 1500 * 1000;
+        }
+        await sender.setParameters(params);
+      }
+    } catch (e) {
+      debugPrint('Setting video parameters failed: $e');
     }
   }
 

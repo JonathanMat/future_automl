@@ -252,3 +252,48 @@ a rematch). The first round of every game starts `GameConfig.introLead`
 (2.9 s) later, so the countdown only begins after the intro: in the mock
 via `_startRound(intro: true)`, in Firebase by the host when `game`
 changes.
+
+## Toernooi (klas, knock-out)
+
+Home → **TOERNOOI**. Iemand (meestal de leerkracht) maakt een toernooi en
+krijgt een **5-tekencode**; tot 16 spelers doen mee met die code. De host
+drukt op START: de loting maakt het schema en elke telefoon roept zijn
+speler op ("JOUW DUEL!", na 5 s start het duel vanzelf).
+
+```
+tournaments/{code}:
+  hostUid, status: lobby|running|finished|cancelled, createdAt, startedAt
+  players/{uid}: {name, tag, joinedAt, online}   (online via onDisconnect)
+  seeds: [uid | "_bye", …]                        de loting
+  rooms/{matchId}: roomCode                       door de 1e speler van het duel
+  results/{matchId}: {winner, at, walkover}       de eerste uitslag telt
+```
+
+- **Het schema wordt nooit opgeslagen**: elke telefoon rekent het uit uit
+  `seeds` + `results` (`Bracket` in `lib/models/tournament.dart`). Zo kan
+  het niet uit sync raken.
+- **Oneven aantallen**: het schema wordt aangevuld tot 2, 4, 8 of 16 plaatsen
+  met **vrijlotingen** (`_bye`). Die worden gespreid zodat nooit twee
+  vrijlotingen tegen elkaar staan; wie er een heeft, gaat meteen door naar
+  ronde 2. Voorbeeld: 6 spelers → 8 plaatsen, 2 vrijlotingen, 3 rondes.
+- Een duel = een gewone kamer. De speler bovenaan in het duel maakt de kamer
+  en schrijft de code in `rooms/`, de andere doet mee. Na het duel schrijft
+  de telefoon de uitslag; het schema schuift vanzelf door.
+- **Walk-over**: verlaat je tegenstander de kamer, dan win jij. Komt hij niet
+  opdagen, dan mag je de winst opeisen na 20 s (offline) of 90 s (online
+  maar weg). De **host** kan op elk duel tikken en zelf beslissen wie
+  doorgaat (ook een uitslag aanpassen).
+- Host verlaat de wachtkamer → toernooi gestopt voor iedereen. Na de start
+  telt weggaan als offline (je tegenstander kan dan w.o. winnen).
+- Kampioen: confetti voor iedereen, +250 XP en de badges *Toernooispeler*
+  (1 toernooiduel) en *Toernooiwinnaar*.
+- **Beamer** (tv-icoon): grote code + spelers in de wachtkamer, daarna het
+  hele live schema schermvullend.
+- Regels (`database.rules.json`): alleen spelers schrijven kamers en
+  uitslagen, een uitslag maar één keer (de host mag overrulen), meedoen kan
+  alleen in de wachtkamer, de winnaar moet een speler zijn. Max. 16 spelers
+  wordt in de app gecontroleerd.
+
+**Testen op één toestel**: `flutter run --dart-define=BACKEND=mock` →
+Toernooi maken → **+3 test-bots** (zo vaak je wilt) → START. Bots spelen
+onderling vanzelf; tegen jou speel je het gewone bot-duel.

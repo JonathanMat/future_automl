@@ -88,6 +88,46 @@ class ProfileProvider extends ChangeNotifier {
     return list;
   }
 
+  /// XP for winning a whole tournament.
+  static const tournamentWinXp = 250;
+
+  /// Unlocks every badge the profile has reached but doesn't hold yet.
+  void _unlockBadges(DateTime now) {
+    final fresh = [
+      for (final b in allBadges)
+        if (!_profile.hasBadge(b.id) && b.reached(_profile)) b,
+    ];
+    if (fresh.isEmpty) return;
+    _profile = _profile.copyWith(
+      badges: {
+        ..._profile.badges,
+        for (final b in fresh) b.id: now.millisecondsSinceEpoch,
+      },
+    );
+    _newBadges = [..._newBadges, ...fresh];
+  }
+
+  /// A tournament match was played (on top of [recordGame]).
+  Future<void> recordTournamentMatch() async {
+    _profile = _profile.copyWith(
+      stats: _profile.stats.plus('tournamentMatches'),
+    );
+    _unlockBadges(DateTime.now());
+    notifyListeners();
+    await _storage.saveProfile(_profile);
+  }
+
+  /// You won a tournament: bonus XP and the trophy badge.
+  Future<void> recordTournamentWin() async {
+    _profile = _profile.copyWith(
+      xp: _profile.xp + tournamentWinXp,
+      stats: _profile.stats.plus('tournamentWins'),
+    );
+    _unlockBadges(DateTime.now());
+    notifyListeners();
+    await _storage.saveProfile(_profile);
+  }
+
   Future<void> recordGame(
     DuelSummary summary, {
     DateTime? at,
@@ -138,19 +178,7 @@ class ProfileProvider extends ChangeNotifier {
     _friends = [updated, ..._friends.where((f) => !same(f))];
 
     // Badges reached with this duel (or earlier, for older profiles).
-    final fresh = [
-      for (final b in allBadges)
-        if (!_profile.hasBadge(b.id) && b.reached(_profile)) b,
-    ];
-    if (fresh.isNotEmpty) {
-      _profile = _profile.copyWith(
-        badges: {
-          ..._profile.badges,
-          for (final b in fresh) b.id: now.millisecondsSinceEpoch,
-        },
-      );
-      _newBadges = [..._newBadges, ...fresh];
-    }
+    _unlockBadges(now);
 
     notifyListeners();
     await _storage.saveProfile(_profile);

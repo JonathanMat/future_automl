@@ -17,6 +17,10 @@ abstract final class AppRadii {
 abstract final class AppSpacing {
   static const screen = 20.0;
   static const gap = 12.0;
+
+  /// The app is kept phone-width on big screens; the beamer view turns
+  /// this on to use the whole screen.
+  static final fullWidth = ValueNotifier<bool>(false);
 }
 
 abstract final class AppTheme {

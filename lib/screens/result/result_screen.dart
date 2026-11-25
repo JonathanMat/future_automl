@@ -6,8 +6,10 @@ import 'package:provider/provider.dart';
 import '../../navigators/app_router.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../providers/tournament_provider.dart';
 import '../../services/game/game_backend.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_transitions.dart';
 import '../../widgets/generic/pill_badge.dart';
@@ -75,6 +77,14 @@ class _ResultScreenState extends State<ResultScreen> {
     }
   }
 
+  Future<void> _backToTournament(BuildContext context) async {
+    if (_navigated) return;
+    _navigated = true;
+    final game = context.read<GameProvider>();
+    AppRouter.backToTournament(context);
+    await game.leave();
+  }
+
   Future<void> _leaveTo(BuildContext context, String route) async {
     if (_navigated) return;
     _navigated = true;
@@ -97,11 +107,21 @@ class _ResultScreenState extends State<ResultScreen> {
     final roomOpen = s.phase == GamePhase.finished && s.error == null;
     final opponentName =
         s.opponent?.name ?? summary?.opponentName ?? 'je tegenstander';
+    // A tournament match: no rematch, back to the bracket.
+    final tournament = context.watch<TournamentProvider?>();
+    final inTournament =
+        tournament != null &&
+        tournament.inTournament &&
+        tournament.lastMatch != null;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _leaveTo(context, AppRoutes.home);
+        if (!didPop) {
+          inTournament
+              ? _backToTournament(context)
+              : _leaveTo(context, AppRoutes.home);
+        }
       },
       child: Scaffold(
         body: SafeArea(
@@ -121,6 +141,7 @@ class _ResultScreenState extends State<ResultScreen> {
                         won: summary.won,
                         opponentName: summary.opponentName,
                         rounds: summary.rounds.length,
+                        offerRematch: !inTournament,
                       ),
                       const SizedBox(height: 24),
                       RewardCards(
@@ -141,58 +162,64 @@ class _ResultScreenState extends State<ResultScreen> {
                   AppSpacing.screen,
                   24,
                 ),
-                child: Column(
-                  children: [
-                    _RematchNote(
-                      roomOpen: roomOpen,
-                      iAsked: s.iWantRematch,
-                      theyAsked: s.opponentWantsRematch,
-                      opponentName: opponentName,
-                    ),
-                    ChunkyButton(
-                      label: !roomOpen
-                          ? 'REVANCHE'
-                          : s.iWantRematch
-                          ? 'WACHTEN…'
-                          : s.opponentWantsRematch
-                          ? 'REVANCHE ACCEPTEREN'
-                          : 'REVANCHE',
-                      height: 62,
-                      fontSize: 22,
-                      style: s.opponentWantsRematch && !s.iWantRematch
-                          ? ChunkyButtonStyle.success
-                          : ChunkyButtonStyle.primary,
-                      onPressed: roomOpen && !s.iWantRematch
-                          ? () => _rematch(context)
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ChunkyButton(
-                            label: 'Home',
-                            display: false,
-                            height: 52,
-                            style: ChunkyButtonStyle.secondary,
-                            onPressed: () => _leaveTo(context, AppRoutes.home),
+                child: inTournament
+                    ? _TournamentButtons(
+                        won: summary?.won ?? false,
+                        onBack: () => _backToTournament(context),
+                      )
+                    : Column(
+                        children: [
+                          _RematchNote(
+                            roomOpen: roomOpen,
+                            iAsked: s.iWantRematch,
+                            theyAsked: s.opponentWantsRematch,
+                            opponentName: opponentName,
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ChunkyButton(
-                            label: 'Scorebord',
-                            display: false,
-                            height: 52,
-                            style: ChunkyButtonStyle.secondary,
-                            onPressed: () =>
-                                _leaveTo(context, AppRoutes.leaderboard),
+                          ChunkyButton(
+                            label: !roomOpen
+                                ? 'REVANCHE'
+                                : s.iWantRematch
+                                ? 'WACHTEN…'
+                                : s.opponentWantsRematch
+                                ? 'REVANCHE ACCEPTEREN'
+                                : 'REVANCHE',
+                            height: 62,
+                            fontSize: 22,
+                            style: s.opponentWantsRematch && !s.iWantRematch
+                                ? ChunkyButtonStyle.success
+                                : ChunkyButtonStyle.primary,
+                            onPressed: roomOpen && !s.iWantRematch
+                                ? () => _rematch(context)
+                                : null,
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ChunkyButton(
+                                  label: 'Home',
+                                  display: false,
+                                  height: 52,
+                                  style: ChunkyButtonStyle.secondary,
+                                  onPressed: () =>
+                                      _leaveTo(context, AppRoutes.home),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ChunkyButton(
+                                  label: 'Scorebord',
+                                  display: false,
+                                  height: 52,
+                                  style: ChunkyButtonStyle.secondary,
+                                  onPressed: () =>
+                                      _leaveTo(context, AppRoutes.leaderboard),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -246,6 +273,37 @@ class _RematchNote extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: PillBadge(label: text, color: color, icon: icon),
             ),
+    );
+  }
+}
+
+class _TournamentButtons extends StatelessWidget {
+  const _TournamentButtons({required this.won, required this.onBack});
+
+  final bool won;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          won
+              ? 'Je gaat door naar de volgende ronde!'
+              : 'Je ligt uit het toernooi. Kijk mee naar de rest!',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.body(15, color: AppColors.textSoft),
+        ),
+        const SizedBox(height: 12),
+        ChunkyButton(
+          label: 'TERUG NAAR TOERNOOI',
+          icon: Icons.account_tree_rounded,
+          height: 62,
+          fontSize: 22,
+          style: won ? ChunkyButtonStyle.success : ChunkyButtonStyle.primary,
+          onPressed: onBack,
+        ),
+      ],
     );
   }
 }

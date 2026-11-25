@@ -36,6 +36,9 @@ class MockGameBackend implements GameBackend {
 
   final Duration botJoinDelay;
 
+  /// The bot's name, e.g. your tournament opponent's (mock tournaments).
+  String botName = 'Bot';
+
   /// Let the bot send emotes. Turn off in tests that count them.
   final bool botEmotes;
 
@@ -104,7 +107,7 @@ class MockGameBackend implements GameBackend {
   void _botJoined() {
     _emit(
       _state.copyWith(
-        opponent: _player(_botUid, 'Bot'),
+        opponent: _player(_botUid, botName),
         callStatus: CallStatus.connected,
       ),
     );
@@ -297,7 +300,7 @@ class MockGameBackend implements GameBackend {
         roomCode: _state.roomCode,
         isHost: _state.isHost,
         me: _player(_myUid, _state.me!.name),
-        opponent: _player(_botUid, 'Bot'),
+        opponent: _player(_botUid, botName),
         callStatus: _state.callStatus,
       ),
     );
