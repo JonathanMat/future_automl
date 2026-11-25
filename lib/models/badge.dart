@@ -120,6 +120,15 @@ final List<BadgeDef> allBadges = [
     progress: (p) => p.stats.friendWins,
   ),
   BadgeDef(
+    id: 'toernooispeler',
+    title: 'Toernooispeler',
+    description: 'Speel een duel in een toernooi.',
+    icon: Icons.account_tree_rounded,
+    tier: BadgeTier.brons,
+    target: 1,
+    progress: (p) => p.stats.tournamentMatches,
+  ),
+  BadgeDef(
     id: 'duellist',
     title: 'Duellist',
     description: 'Win 10 duels.',
@@ -211,6 +220,15 @@ final List<BadgeDef> allBadges = [
     tier: BadgeTier.goud,
     target: 50,
     progress: (p) => p.wins,
+  ),
+  BadgeDef(
+    id: 'toernooiwinnaar',
+    title: 'Toernooiwinnaar',
+    description: 'Win een toernooi.',
+    icon: Icons.emoji_events_rounded,
+    tier: BadgeTier.episch,
+    target: 1,
+    progress: (p) => p.stats.tournamentWins,
   ),
   BadgeDef(
     id: 'aartsmagier',

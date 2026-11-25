@@ -9,9 +9,9 @@ abstract final class AppConstants {
   static const xpForLoss = 40;
 
   // Spell recognition (thresholds: see gesture_constants.dart)
-  /// How often a camera frame is sent to the model (at most ~10 per
+  /// How often a camera frame is sent to the model (at most ~7 per
   /// second; a frame is skipped while the previous one is still running).
-  static const recognitionInterval = Duration(milliseconds: 100);
+  static const recognitionInterval = Duration(milliseconds: 150);
 
   // Rooms
   static const roomCodeLength = 4;

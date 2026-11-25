@@ -35,6 +35,14 @@ class PlayerStats {
   /// Fastest cast after CAST, in ms. 0 = none yet.
   int get fastestMs => this['fastestMs'];
 
+  /// Tournament matches played and tournaments won.
+  int get tournamentMatches => this['tournamentMatches'];
+  int get tournamentWins => this['tournamentWins'];
+
+  /// These stats with [key] counted up by [n].
+  PlayerStats plus(String key, [int n = 1]) =>
+      PlayerStats({..._values, key: this[key] + n});
+
   /// These stats plus one finished duel.
   PlayerStats withDuel(
     DuelSummary summary, {

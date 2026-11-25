@@ -9,6 +9,7 @@ import 'providers/challenge_provider.dart';
 import 'providers/friends_provider.dart';
 import 'providers/game_provider.dart';
 import 'providers/profile_provider.dart';
+import 'providers/tournament_provider.dart';
 import 'services/auth/account_service.dart';
 import 'services/auth/firebase_account_service.dart';
 import 'services/auth/mock_account_service.dart';
@@ -23,6 +24,9 @@ import 'services/social/firebase_friends_backend.dart';
 import 'services/social/friends_backend.dart';
 import 'services/social/mock_friends_backend.dart';
 import 'services/storage/local_storage_service.dart';
+import 'services/tournament/firebase_tournament_backend.dart';
+import 'services/tournament/mock_tournament_backend.dart';
+import 'services/tournament/tournament_backend.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 import 'utils/constants.dart';
@@ -44,6 +48,7 @@ Future<void> main() async {
   final GameBackend backend;
   final FriendsBackend friends;
   final AccountService account;
+  final TournamentBackend tournaments;
   PushService push = const NoPushService();
   if (_backendKind == 'firebase') {
     await Firebase.initializeApp(
@@ -56,10 +61,12 @@ Future<void> main() async {
       discardGuestData: firebaseFriends.deleteMyData,
     );
     push = FirebasePushService();
+    tournaments = FirebaseTournamentBackend();
   } else {
     backend = MockGameBackend(useCamera: _cameraOn);
     friends = MockFriendsBackend(seedFriends: MockFriendsBackend.demoFriends);
     account = MockAccountService();
+    tournaments = MockTournamentBackend();
   }
 
   final profile = ProfileProvider(LocalStorageService());
@@ -71,6 +78,7 @@ Future<void> main() async {
       backend: backend,
       friends: friends,
       account: account,
+      tournaments: tournaments,
       push: push,
       profile: profile,
       // The Firebase call sends audio too, so it also needs the microphone.
@@ -93,6 +101,7 @@ class SpellDuelApp extends StatefulWidget {
     required this.profile,
     this.friends,
     this.account,
+    this.tournaments,
     this.push = const NoPushService(),
     this.recognizer = const ManualSpellRecognizer(),
     this.cameraPermission = const CameraPermissionService(enabled: false),
@@ -106,6 +115,9 @@ class SpellDuelApp extends StatefulWidget {
 
   /// Defaults to [MockAccountService].
   final AccountService? account;
+
+  /// Defaults to [MockTournamentBackend] (with bots).
+  final TournamentBackend? tournaments;
   final PushService push;
   final SpellRecognizer recognizer;
   final CameraPermissionService cameraPermission;
@@ -126,12 +138,23 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
     backend: widget.backend,
     recognizer: widget.recognizer,
     cameraPermission: widget.cameraPermission,
-    onGameFinished: (summary) => widget.profile.recordGame(
-      summary,
-      vsFriend:
-          summary.opponentUid != null &&
-          _friends.isFriend(summary.opponentUid!),
-    ),
+    onGameFinished: (summary) async {
+      // Opponent left: no winner in the room (iWon null).
+      final iWon = _game.state.iWon;
+      await widget.profile.recordGame(
+        summary,
+        vsFriend:
+            summary.opponentUid != null &&
+            _friends.isFriend(summary.opponentUid!),
+      );
+      await _tournament.onGameFinished(summary, iWon: iWon);
+    },
+  );
+  late final TournamentProvider _tournament = TournamentProvider(
+    backend: widget.tournaments ?? MockTournamentBackend(),
+    friends: _friends,
+    game: _game,
+    profile: widget.profile,
   );
   late final ChallengeProvider _challenges = ChallengeProvider(
     backend: _friendsBackend,
@@ -158,6 +181,7 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
   void dispose() {
     widget.profile.removeListener(_applyVoiceChat);
     _account.dispose();
+    _tournament.dispose();
     _challenges.dispose();
     _game.dispose();
     _friends.dispose();
@@ -173,6 +197,7 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
         ChangeNotifierProvider.value(value: _account),
         ChangeNotifierProvider.value(value: _game),
         ChangeNotifierProvider.value(value: _challenges),
+        ChangeNotifierProvider.value(value: _tournament),
       ],
       child: MaterialApp(
         title: AppConstants.appName,
@@ -187,11 +212,17 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
         // The design is for phones: keep it phone-width on tablets.
         builder: (context, child) => ColoredBox(
           color: AppColors.backdrop,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: child,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: AppSpacing.fullWidth,
+            builder: (context, full, child) => Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: full ? double.infinity : 520,
+                ),
+                child: child,
+              ),
             ),
+            child: child,
           ),
         ),
         // One route only: by default "/welkom" would also push "/" under it.

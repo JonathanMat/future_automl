@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../screens/debug/backend_debug_page.dart';
 import '../screens/badges/badges_screen.dart';
@@ -12,6 +13,8 @@ import '../screens/lobby/lobby_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/result/result_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/tournament/tournament_screen.dart';
+import '../providers/tournament_provider.dart';
 import '../services/game/game_backend.dart';
 import '../theme/app_transitions.dart';
 
@@ -27,6 +30,7 @@ abstract final class AppRoutes {
   static const debug = '/debug';
   static const fxPreview = '/effecten';
   static const badges = '/badges';
+  static const tournament = '/toernooi';
 }
 
 /// Named routes for the whole app.
@@ -60,6 +64,8 @@ class AppRouter {
           builder: (_) => const BadgesScreen(),
           settings: settings,
         );
+      case AppRoutes.tournament:
+        return AppTransitions.fade(const TournamentScreen(), settings);
       case AppRoutes.settings:
         return MaterialPageRoute(
           builder: (_) => const SettingsScreen(),
@@ -80,8 +86,32 @@ class AppRouter {
     }
   }
 
-  /// Back to the home screen, closing everything on top.
-  static void goHome(BuildContext context) => Navigator.of(
-    context,
-  ).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+  /// Back to the home screen, closing everything on top. During a
+  /// tournament that is the tournament screen (with home under it).
+  static void goHome(BuildContext context) {
+    final inTournament =
+        context.read<TournamentProvider?>()?.inTournament ?? false;
+    if (inTournament) {
+      backToTournament(context);
+    } else {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+    }
+  }
+
+  /// Back to the tournament screen after a match.
+  static void backToTournament(BuildContext context) {
+    final nav = Navigator.of(context);
+    var found = false;
+    nav.popUntil((route) {
+      if (route.settings.name == AppRoutes.tournament) found = true;
+      return found || route.isFirst;
+    });
+    if (!found) {
+      nav
+        ..pushNamedAndRemoveUntil(AppRoutes.home, (_) => false)
+        ..pushNamed(AppRoutes.tournament);
+    }
+  }
 }

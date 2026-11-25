@@ -6,6 +6,7 @@ import '../../navigators/room_flow.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../providers/tournament_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/friends/challenge_banner.dart';
@@ -18,6 +19,7 @@ import '../../widgets/home/join_room_row.dart';
 import '../../widgets/home/profile_header.dart';
 import '../../widgets/home/recent_duel_card.dart';
 import '../../widgets/home/spell_hero_card.dart';
+import '../../widgets/home/tournament_card.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -26,6 +28,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>().profile;
     final game = context.watch<GameProvider>();
+    final tournament = context.watch<TournamentProvider?>();
 
     return Scaffold(
       bottomNavigationBar: const SafeArea(
@@ -64,6 +67,14 @@ class HomeScreen extends StatelessWidget {
               busy: game.busy,
               onJoin: (code) => RoomFlow.join(context, code),
             ),
+            if (tournament != null) ...[
+              const SizedBox(height: 14),
+              TournamentCard(
+                t: tournament,
+                onOpen: () =>
+                    Navigator.of(context).pushNamed(AppRoutes.tournament),
+              ),
+            ],
             const SizedBox(height: 20),
             Row(
               children: [

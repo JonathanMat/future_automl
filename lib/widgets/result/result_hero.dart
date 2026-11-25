@@ -10,11 +10,15 @@ class ResultHero extends StatelessWidget {
     required this.won,
     required this.opponentName,
     required this.rounds,
+    this.offerRematch = true,
   });
 
   final bool won;
   final String opponentName;
   final int rounds;
+
+  /// False in a tournament: there is no rematch.
+  final bool offerRematch;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +89,7 @@ class ResultHero extends StatelessWidget {
         Text(
           won
               ? 'Je versloeg $opponentName in $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.'
-              : '$opponentName won na $rounds ${rounds == 1 ? 'ronde' : 'rondes'}. Revanche?',
+              : '$opponentName won na $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.${offerRematch ? ' Revanche?' : ''}',
           textAlign: TextAlign.center,
           style: AppTextStyles.body(
             15,

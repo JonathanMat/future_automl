@@ -32,6 +32,9 @@ class MockGameBackend implements GameBackend {
   final bool mirrorCameraAsOpponent;
 
   final Duration botJoinDelay;
+
+  /// The bot's name, e.g. your tournament opponent's (mock tournaments).
+  String botName = 'Bot';
   final Random _random;
 
   static const _myUid = 'mock-me';
@@ -93,7 +96,7 @@ class MockGameBackend implements GameBackend {
   void _botJoined() {
     _emit(
       _state.copyWith(
-        opponent: _player(_botUid, 'Bot'),
+        opponent: _player(_botUid, botName),
         callStatus: CallStatus.connected,
       ),
     );
@@ -224,7 +227,7 @@ class MockGameBackend implements GameBackend {
         roomCode: _state.roomCode,
         isHost: _state.isHost,
         me: _player(_myUid, _state.me!.name),
-        opponent: _player(_botUid, 'Bot'),
+        opponent: _player(_botUid, botName),
         callStatus: _state.callStatus,
       ),
     );
