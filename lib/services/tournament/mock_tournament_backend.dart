@@ -181,16 +181,44 @@ class MockTournamentBackend extends TournamentBackend {
   }
 
   @override
-  Future<void> reportResult(
+  Future<void> setMatchReady(
+    String code,
+    String matchId,
+    String uid, {
+    required bool ready,
+  }) async {
+    final d = _get(code);
+    final times = {...?d.readyAt[matchId]};
+    if (ready) {
+      if (d.status != TournamentStatus.running ||
+          d.results.containsKey(matchId)) {
+        throw TournamentException('Dit duel is afgelopen.');
+      }
+      times.putIfAbsent(uid, () => _now);
+    } else {
+      times.remove(uid);
+    }
+    _set(code, d.copyWith(readyAt: {...d.readyAt, matchId: times}));
+  }
+
+  @override
+  Future<bool> reportResult(
     String code,
     String matchId,
     String winner, {
     bool walkover = false,
     bool force = false,
+    String? noShow,
   }) async {
     final d = _data[code];
-    if (d == null) return;
-    if (d.results.containsKey(matchId) && !force) return;
+    if (d == null || (d.results.containsKey(matchId) && !force)) return false;
+    if (noShow != null) {
+      final times = d.readyAt[matchId];
+      if (times?[winner] == null ||
+          (times?[noShow] != null && d.players[noShow]?.online == true)) {
+        return false;
+      }
+    }
     _set(
       code,
       d.copyWith(
@@ -200,6 +228,7 @@ class MockTournamentBackend extends TournamentBackend {
         },
       ),
     );
+    return true;
   }
 
   @override

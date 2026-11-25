@@ -9,8 +9,8 @@ import '../generic/avatar_tile.dart';
 import '../generic/chunky_button.dart';
 
 enum CallUpStage {
-  /// Counting down, then the duel starts by itself.
-  countdown,
+  /// Waiting for this player to accept.
+  ready,
 
   /// Getting into the room.
   joining,
@@ -20,7 +20,7 @@ enum CallUpStage {
 }
 
 /// "JOUW DUEL!": slams in when your match is ready, the two players fly in
-/// from both sides with VS between them, and a ring counts down to the duel.
+/// from both sides with VS between them.
 class CallUpOverlay extends StatefulWidget {
   const CallUpOverlay({
     super.key,
@@ -28,9 +28,9 @@ class CallUpOverlay extends StatefulWidget {
     required this.opponentName,
     required this.roundName,
     required this.stage,
-    required this.secondsLeft,
     required this.onPlay,
     required this.onLater,
+    this.walkover,
     this.opponentOffline = false,
   });
 
@@ -39,10 +39,9 @@ class CallUpOverlay extends StatefulWidget {
   final String roundName;
   final CallUpStage stage;
 
-  /// Of the countdown; 0 or less starts.
-  final int secondsLeft;
   final VoidCallback onPlay;
   final VoidCallback onLater;
+  final Widget? walkover;
   final bool opponentOffline;
 
   @override
@@ -67,14 +66,6 @@ class _CallUpOverlayState extends State<CallUpOverlay>
   }
 
   @override
-  void didUpdateWidget(CallUpOverlay old) {
-    super.didUpdateWidget(old);
-    if (old.secondsLeft != widget.secondsLeft && widget.secondsLeft > 0) {
-      HapticFeedback.selectionClick();
-    }
-  }
-
-  @override
   void dispose() {
     _in.dispose();
     _beat.dispose();
@@ -95,7 +86,7 @@ class _CallUpOverlayState extends State<CallUpOverlay>
     final vs = _iv(0.6, 1, Curves.elasticOut);
 
     final status = switch (widget.stage) {
-      CallUpStage.countdown => 'Het duel start zo…',
+      CallUpStage.ready => 'Bevestig dat je klaar bent om te spelen.',
       CallUpStage.joining => 'Kamer openen…',
       CallUpStage.waitingForRoom =>
         'Wachten tot ${widget.opponentName} de kamer opent…',
@@ -207,12 +198,6 @@ class _CallUpOverlayState extends State<CallUpOverlay>
                           ],
                         ),
                         const Spacer(),
-                        _Countdown(
-                          stage: widget.stage,
-                          seconds: widget.secondsLeft,
-                          beat: _beat.value,
-                        ),
-                        const SizedBox(height: 12),
                         Text(
                           status,
                           textAlign: TextAlign.center,
@@ -222,19 +207,23 @@ class _CallUpOverlayState extends State<CallUpOverlay>
                           ),
                         ),
                         const Spacer(flex: 2),
-                        ChunkyButton(
-                          label: 'SPEEL NU',
-                          height: 60,
-                          fontSize: 22,
-                          style: ChunkyButtonStyle.success,
-                          loading: widget.stage == CallUpStage.joining,
-                          onPressed: widget.stage == CallUpStage.countdown
-                              ? widget.onPlay
-                              : null,
-                        ),
+                        if (widget.stage != CallUpStage.waitingForRoom)
+                          ChunkyButton(
+                            label: 'SPEEL NU',
+                            height: 60,
+                            fontSize: 22,
+                            style: ChunkyButtonStyle.success,
+                            loading: widget.stage == CallUpStage.joining,
+                            onPressed: widget.stage == CallUpStage.ready
+                                ? widget.onPlay
+                                : null,
+                          ),
+                        ?widget.walkover,
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed: widget.onLater,
+                          onPressed: widget.stage == CallUpStage.joining
+                              ? null
+                              : widget.onLater,
                           child: Text(
                             'Nog even niet',
                             style: AppTextStyles.body(
@@ -325,88 +314,6 @@ class _VsBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Countdown extends StatelessWidget {
-  const _Countdown({
-    required this.stage,
-    required this.seconds,
-    required this.beat,
-  });
-
-  final CallUpStage stage;
-  final int seconds;
-  final double beat;
-
-  @override
-  Widget build(BuildContext context) {
-    final counting = stage == CallUpStage.countdown;
-    return SizedBox.square(
-      dimension: 92,
-      child: CustomPaint(
-        painter: _RingPainter(
-          // Within the current second the ring runs down.
-          progress: counting ? 1 - beat : beat,
-          spinning: !counting,
-        ),
-        child: Center(
-          child: counting
-              ? AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  transitionBuilder: (child, a) =>
-                      ScaleTransition(scale: a, child: child),
-                  child: Text(
-                    '${max(seconds, 0)}',
-                    key: ValueKey(seconds),
-                    style: AppTextStyles.display(44, color: AppColors.gold),
-                  ),
-                )
-              : const Icon(
-                  Icons.meeting_room_rounded,
-                  color: AppColors.lavender,
-                  size: 34,
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  _RingPainter({required this.progress, required this.spinning});
-
-  final double progress;
-  final bool spinning;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final r = rect.deflate(5);
-    canvas.drawArc(
-      r,
-      0,
-      2 * pi,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..color = AppColors.track,
-    );
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..color = spinning ? AppColors.lavender : AppColors.gold;
-    if (spinning) {
-      canvas.drawArc(r, progress * 2 * pi - pi / 2, pi / 2, false, paint);
-    } else {
-      canvas.drawArc(r, -pi / 2, 2 * pi * progress, false, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) =>
-      old.progress != progress || old.spinning != spinning;
 }
 
 /// Streaks rushing towards the middle, like a fighting-game "versus".

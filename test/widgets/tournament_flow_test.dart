@@ -130,7 +130,9 @@ void main() {
         tester,
         () => find.text('JOUW DUEL!').evaluate().isNotEmpty,
       );
-      await pumpFor(tester, const Duration(milliseconds: 1200));
+      await pumpFor(tester, const Duration(seconds: 6));
+      expect(game.inRoom, isFalse);
+      expect(find.text('Winst opeisen'), findsNothing);
       expect(tester.takeException(), isNull);
 
       // Play: a real room opens (the bot may open it first).

@@ -8,6 +8,7 @@ import 'package:spell_duel/providers/game_provider.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
 import 'package:spell_duel/providers/tournament_provider.dart';
 import 'package:spell_duel/services/game/mock_game_backend.dart';
+import 'package:spell_duel/services/social/friends_backend.dart';
 import 'package:spell_duel/services/social/mock_friends_backend.dart';
 import 'package:spell_duel/services/storage/local_storage_service.dart';
 import 'package:spell_duel/services/tournament/firebase_tournament_backend.dart';
@@ -21,6 +22,20 @@ const _summary = DuelSummary(
   xpGained: 0,
 );
 
+const _opponentUid = 'opponent';
+
+class _OpponentFriendsBackend extends MockFriendsBackend {
+  @override
+  Future<FriendIdentity> signIn({
+    required String name,
+    bool keepServerName = false,
+  }) async => const FriendIdentity(
+    uid: _opponentUid,
+    friendCode: 'ABC123',
+    tag: '4321',
+  );
+}
+
 void main() {
   late MockTournamentBackend backend;
   late MockGameBackend gameBackend;
@@ -31,16 +46,16 @@ void main() {
   var now = DateTime.now();
   var ready = false;
 
-  Future<void> setup({int seed = 1}) async {
+  Future<void> setup({
+    int seed = 1,
+    Duration botJoinDelay = const Duration(milliseconds: 5),
+  }) async {
     SharedPreferences.setMockInitialValues({});
     profile = ProfileProvider(LocalStorageService());
     await profile.load();
     await profile.setName('Jonathan');
     friends = FriendsProvider(MockFriendsBackend())..attach(profile);
-    gameBackend = MockGameBackend(
-      useCamera: false,
-      botJoinDelay: const Duration(milliseconds: 5),
-    );
+    gameBackend = MockGameBackend(useCamera: false, botJoinDelay: botJoinDelay);
     game = GameProvider(backend: gameBackend);
     backend = MockTournamentBackend(
       random: Random(seed),
@@ -179,13 +194,15 @@ void main() {
 
   test('offline opponent: claim the walk-over after the wait', () async {
     await setup(seed: 3);
-    await t.create();
-    await t.addBots(1);
+    final code = (await t.create())!;
+    await backend.join(
+      code,
+      const TournamentMe(uid: _opponentUid, name: 'Lotte'),
+    );
+    await backend.start(code, [_opponentUid, t.myUid!]);
     await pumpEventQueue();
-    await t.start();
-    await pumpEventQueue();
-    final bot = t.myOpponent!;
-    await backend.leave(t.code!, bot.uid, isHost: false);
+    await backend.leave(code, _opponentUid, isHost: false);
+    expect(await t.play(), PlayOutcome.waitForRoom);
     await pumpEventQueue();
     expect(t.myOpponent!.online, isFalse);
     expect(t.canClaimWalkover, isFalse);
@@ -198,18 +215,69 @@ void main() {
     expect(t.isChampion, isTrue);
   });
 
-  test('online opponent who never shows: 90 s before a walk-over', () async {
-    await setup(seed: 5);
-    await t.create();
-    await t.addBots(1);
-    await pumpEventQueue();
-    await t.start();
-    await pumpEventQueue();
-    now = now.add(const Duration(seconds: 30));
-    expect(t.canClaimWalkover, isFalse);
-    now = now.add(TournamentProvider.walkoverWait);
-    expect(t.canClaimWalkover, isTrue);
-  });
+  for (final opensRoom in [true, false]) {
+    test(
+      'only the player who accepts can claim (opens room: $opensRoom)',
+      () async {
+        await setup(botJoinDelay: const Duration(minutes: 10));
+        final code = (await t.create())!;
+        final opponentFriends = FriendsProvider(_OpponentFriendsBackend())
+          ..attach(profile);
+        final opponentGame = GameProvider(
+          backend: MockGameBackend(useCamera: false),
+        );
+        final opponent = TournamentProvider(
+          backend: backend,
+          friends: opponentFriends,
+          game: opponentGame,
+          profile: profile,
+          clock: () => now,
+        );
+        addTearDown(() {
+          opponent.dispose();
+          opponentGame.dispose();
+          opponentFriends.dispose();
+        });
+        await pumpEventQueue();
+        expect(await opponent.join(code), isTrue);
+        final me = t.myUid!;
+        await backend.start(
+          code,
+          opensRoom ? [me, _opponentUid] : [_opponentUid, me],
+        );
+        await pumpEventQueue();
+        final id = t.myMatch!.id;
+
+        final outcome = await t.play();
+        expect(
+          outcome,
+          opensRoom ? PlayOutcome.inRoom : PlayOutcome.waitForRoom,
+        );
+        await pumpEventQueue();
+        expect(t.waitingForOpponent, isTrue);
+        now = now.add(const Duration(seconds: 30));
+        expect(t.canClaimWalkover, isFalse);
+        now = now.add(TournamentProvider.walkoverWait);
+        expect(t.canClaimWalkover, isTrue);
+        expect(opponent.canClaimWalkover, isFalse);
+        expect(await opponent.claimWalkover(), isFalse);
+
+        // Acceptance arriving before a claim blocks it.
+        await backend.setMatchReady(code, id, _opponentUid, ready: true);
+        expect(await t.claimWalkover(), isFalse);
+        await pumpEventQueue();
+        expect(t.canClaimWalkover, isFalse);
+        await opponent.cancelPlay(id);
+        await pumpEventQueue();
+
+        expect(await t.claimWalkover(), isTrue);
+        await pumpEventQueue();
+        expect(t.isChampion, isTrue);
+        expect(opponent.isEliminated, isTrue);
+        expect(t.bracket.finalMatch!.walkover, isTrue);
+      },
+    );
+  }
 
   test('the host can overrule a result', () async {
     await setup(seed: 6);
@@ -314,6 +382,9 @@ void main() {
         },
         'seeds': {'0': 'u1', '1': 'u2', '2': '_bye', '3': 'u3'},
         'rooms': {'r0m0': 'KAMER'},
+        'readyAt': {
+          'r0m0': {'u1': 1500},
+        },
         'results': {
           'r0m0': {'winner': 'u2', 'at': 2000, 'walkover': true},
           'r0m1': {'at': 3},
@@ -325,6 +396,7 @@ void main() {
       expect(d.players['u1']!.tag, '1234');
       expect(d.seeds, ['u1', 'u2', byeSeat, 'u3']);
       expect(d.rooms['r0m0'], 'KAMER');
+      expect(d.readyAt['r0m0'], {'u1': 1500});
       expect(d.results.keys, ['r0m0']);
       expect(d.results['r0m0']!.walkover, isTrue);
       expect(d.startedAt, 1000);
