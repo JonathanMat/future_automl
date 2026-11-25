@@ -22,6 +22,22 @@ abstract final class AudioSession {
     androidAudioAttributesContentType: AndroidAudioAttributesContentType.speech,
   );
 
+  /// Starts WebRTC with the opponent's voice as media audio. Must run at
+  /// app start, before anything else uses WebRTC: its audio engine is made
+  /// once, and by default it plays voice as call audio
+  /// (`USAGE_VOICE_COMMUNICATION`), which puts Android in call mode no
+  /// matter what [configure] says.
+  static Future<void> initWebRtc() async {
+    if (kIsWeb || !WebRTC.platformIsAndroid) return;
+    try {
+      await WebRTC.initialize(
+        options: {'androidAudioConfiguration': _voiceAsMedia.toMap()},
+      );
+    } catch (e) {
+      debugPrint('AudioSession.initWebRtc: $e');
+    }
+  }
+
   /// Sets the audio for a call with ([voice]) or without the microphone.
   /// Both stay in normal media mode, so the sound effects keep working.
   /// Must be called before the camera/mic is opened.

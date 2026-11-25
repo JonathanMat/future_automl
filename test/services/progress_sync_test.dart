@@ -49,6 +49,26 @@ void main() {
     expect(backend.savedProgress?['wins'], 2);
   });
 
+  test('a loss remembers the streak it broke', () async {
+    final profile = await _profile();
+    for (var i = 0; i < 3; i++) {
+      await profile.recordGame(_win());
+    }
+    expect(profile.brokenStreak, 0);
+    await profile.recordGame(
+      const DuelSummary(
+        opponentName: 'Bot',
+        won: false,
+        rounds: [],
+        xpGained: 40,
+      ),
+    );
+    expect(profile.brokenStreak, 3);
+    expect(profile.profile.streak, 0);
+    await profile.recordGame(_win());
+    expect(profile.brokenStreak, 0);
+  });
+
   test('the duel history is kept to the latest ones and synced', () async {
     final profile = await _profile();
     const vsBot = DuelSummary(

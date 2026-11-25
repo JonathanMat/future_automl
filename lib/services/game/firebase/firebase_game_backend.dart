@@ -73,6 +73,11 @@ class FirebaseGameBackend implements GameBackend {
   /// one in the room, when you join).
   static const _emoteMaxAge = Duration(seconds: 5);
 
+  /// A game is running in this room (status was 'playing'). If the room
+  /// is then closed (older app versions close it when leaving), the
+  /// opponent counts as having left: you win after the wait.
+  bool _playingGame = false;
+
   /// About the lobby's page transition (see [_enterRoom]).
   static const _connectDelay = Duration(milliseconds: 350);
   Timer? _connectTimer;
@@ -297,10 +302,14 @@ class FirebaseGameBackend implements GameBackend {
   Future<void> claimForfeit() async {
     final room = _room;
     final ref = _roomRef;
-    if (room == null || ref == null || room['status'] != 'playing') return;
+    if (room == null || ref == null) return;
+    final status = room['status'];
+    final closedMidGame = status == 'closed' && _playingGame;
+    if (status != 'playing' && !closedMidGame) return;
     final opponentUid = _isHost ? room['guestUid'] : room['hostUid'];
     final players = _asMap(room['players']) ?? const {};
-    if (_asMap(players[opponentUid])?['online'] == true) return; // back
+    final back = _asMap(players[opponentUid])?['online'] == true;
+    if (back && !closedMidGame) return;
     await ref.update({
       'status': 'finished',
       'winnerUid': _uid,
@@ -508,6 +517,7 @@ class FirebaseGameBackend implements GameBackend {
     _revealed.clear();
     _hostStartedRound = 0;
     _hostResolvedRound = 0;
+    _playingGame = false;
     _hostStartingGame = false;
     _hostStartingRematch = false;
     _game = 0;
@@ -556,8 +566,22 @@ class FirebaseGameBackend implements GameBackend {
     final guestUid = room['guestUid'] as String?;
     final opponentUid = _isHost ? guestUid : hostUid;
 
+    if (status == 'playing') _playingGame = true;
+    if (status == 'finished' || status == 'waiting') _playingGame = false;
+    final closedMidGame = status == 'closed' && _playingGame;
+
     final me = _player(_uid, players[_uid]);
-    final opponent = _player(opponentUid, players[opponentUid]);
+    var opponent = _player(opponentUid, players[opponentUid]);
+    if (closedMidGame && opponent != null) {
+      opponent = PlayerState(
+        uid: opponent.uid,
+        name: opponent.name,
+        lives: opponent.lives,
+        shieldsUsed: opponent.shieldsUsed,
+        online: false,
+        left: true,
+      );
+    }
 
     final roundNr = _asInt(room['currentRound']);
     final round = _asMap(_asMap(room['rounds'])?['$roundNr']);
@@ -573,7 +597,7 @@ class FirebaseGameBackend implements GameBackend {
 
     GamePhase phase;
     String? error = _error;
-    switch (status) {
+    switch (closedMidGame ? 'playing' : status) {
       case 'closed':
         phase = GamePhase.finished;
         error ??= 'Je tegenstander heeft de kamer verlaten.';

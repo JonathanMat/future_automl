@@ -72,6 +72,11 @@ class ProfileProvider extends ChangeNotifier {
     await _storage.saveSoundEffects(value);
   }
 
+  /// The win streak the last duel ended (0 after a win, or when there
+  /// was none), for "Reeks verbroken" on the result screen.
+  int get brokenStreak => _brokenStreak;
+  int _brokenStreak = 0;
+
   /// XP a game is worth, so the result screen can show it before saving.
   static int xpFor({required bool won}) =>
       won ? AppConstants.xpForWin : AppConstants.xpForLoss;
@@ -136,6 +141,7 @@ class ProfileProvider extends ChangeNotifier {
   }) async {
     final now = at ?? DateTime.now();
     final won = summary.won;
+    _brokenStreak = won ? 0 : _profile.streak;
     final streak = won ? _profile.streak + 1 : 0;
     final duel = LastDuel(
       opponentName: summary.opponentName,

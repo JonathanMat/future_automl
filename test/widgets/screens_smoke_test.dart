@@ -6,6 +6,7 @@ import 'package:spell_duel/models/duel_summary.dart';
 import 'package:spell_duel/models/game_rules.dart';
 import 'package:spell_duel/models/game_state.dart';
 import 'package:spell_duel/models/player_profile.dart';
+import 'package:spell_duel/models/player_stats.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
 import 'package:spell_duel/services/game/mock_game_backend.dart';
 import 'package:spell_duel/services/storage/local_storage_service.dart';
@@ -229,6 +230,52 @@ void main() {
       expect(size.height, lessThanOrEqualTo(40), reason: name);
       expect(size.width, lessThanOrEqualTo(240), reason: name);
     }
+  });
+
+  testWidgets('the streak card: long streak, broken, none', (tester) async {
+    phoneSize(tester);
+    Future<void> show(PlayerProfile p, {required bool won, int broken = 0}) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ListView(
+                children: [
+                  RewardCards(
+                    profile: p,
+                    xpGained: 120,
+                    won: won,
+                    brokenStreak: broken,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    await show(
+      PlayerProfile(
+        wins: 4,
+        streak: 4,
+        stats: const PlayerStats({'bestStreak': 4}),
+      ),
+      won: true,
+    );
+    expect(find.text('4 OP RIJ'), findsOneWidget);
+    expect(find.text('Lange reeks!'), findsOneWidget);
+    expect(find.text('Je beste reeks ooit'), findsOneWidget);
+
+    await show(
+      const PlayerProfile(losses: 1, stats: PlayerStats({'bestStreak': 5})),
+      won: false,
+      broken: 3,
+    );
+    expect(find.text('REEKS VERBROKEN'), findsOneWidget);
+    expect(find.text('Je reeks van 3 op rij is voorbij'), findsOneWidget);
+    expect(find.text('Beste: 5 op rij'), findsOneWidget);
+
+    await show(const PlayerProfile(losses: 1), won: false);
+    expect(find.text('GEEN REEKS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the opponent-away popup counts down', (tester) async {

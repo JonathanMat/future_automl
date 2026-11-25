@@ -17,6 +17,7 @@ import 'services/audio/sfx_service.dart';
 import 'services/auth/account_service.dart';
 import 'services/auth/firebase_account_service.dart';
 import 'services/auth/mock_account_service.dart';
+import 'services/game/firebase/audio_session.dart';
 import 'services/game/firebase/firebase_game_backend.dart';
 import 'services/game/game_backend.dart';
 import 'services/game/mock_game_backend.dart';
@@ -49,6 +50,8 @@ const _cameraOn = String.fromEnvironment('CAMERA', defaultValue: 'on') != 'off';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Before anything else touches WebRTC (see AudioSession.initWebRtc).
+  await AudioSession.initWebRtc();
   // Portrait only: the duel layout (two camera feeds stacked) needs it.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final GameBackend backend;

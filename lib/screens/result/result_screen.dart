@@ -148,6 +148,9 @@ class _ResultScreenState extends State<ResultScreen> {
                         profile: profile,
                         xpGained: summary.xpGained,
                         won: summary.won,
+                        brokenStreak: context.select<ProfileProvider, int>(
+                          (p) => p.brokenStreak,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       DuelStatsCard(summary: summary),
