@@ -52,8 +52,8 @@ class FirebaseAccountService implements AccountService {
     );
   }
 
-  @override
-  Future<GoogleSignInOutcome> signInWithGoogle() async {
+  /// Shows the Google dialog. Null when the player closed it.
+  Future<AuthCredential?> _googleCredential() async {
     await (_googleInit ??= _google.initialize(
       serverClientId: _serverClientId.isEmpty ? null : _serverClientId,
     ));
@@ -65,9 +65,7 @@ class FirebaseAccountService implements AccountService {
     try {
       account = await _google.authenticate();
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        return GoogleSignInOutcome.canceled;
-      }
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
       debugPrint('Google sign-in: $e');
       throw AccountException(
         'Inloggen met Google mislukt. Is Google-login ingesteld in Firebase?',
@@ -78,7 +76,13 @@ class FirebaseAccountService implements AccountService {
     if (idToken == null) {
       throw AccountException('Google gaf geen login-token terug.');
     }
-    final credential = GoogleAuthProvider.credential(idToken: idToken);
+    return GoogleAuthProvider.credential(idToken: idToken);
+  }
+
+  @override
+  Future<GoogleSignInOutcome> signInWithGoogle() async {
+    final credential = await _googleCredential();
+    if (credential == null) return GoogleSignInOutcome.canceled;
 
     try {
       final user = _auth.currentUser;
@@ -108,6 +112,46 @@ class FirebaseAccountService implements AccountService {
       debugPrint('Firebase Google sign-in: ${e.code} ${e.message}');
       throw AccountException('Inloggen mislukt (${e.code}).');
     }
+  }
+
+  @override
+  Future<bool> deleteAccount({
+    required Future<void> Function() deleteData,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      await deleteData();
+      return true;
+    }
+    final google = !current.isGuest;
+    try {
+      // Deleting a login needs a recent sign-in. Confirm before anything is
+      // deleted, so canceling leaves the account as it was.
+      if (google) {
+        final credential = await _googleCredential();
+        if (credential == null) return false;
+        await user.reauthenticateWithCredential(credential);
+      }
+      await deleteData();
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      debugPrint('delete account: ${e.code} ${e.message}');
+      throw AccountException(
+        e.code == 'requires-recent-login'
+            ? 'Log opnieuw in en probeer het nog eens.'
+            : 'Account verwijderen mislukt (${e.code}).',
+      );
+    }
+    if (google) {
+      try {
+        await _google.signOut();
+      } catch (e) {
+        debugPrint('Google signOut: $e');
+      }
+    }
+    // Normally already signed out by delete(); makes sure no one is left.
+    if (_auth.currentUser != null) await _auth.signOut();
+    return true;
   }
 
   @override

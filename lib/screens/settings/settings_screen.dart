@@ -2,11 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/game_rules.dart';
-import '../../models/spell_info.dart';
 import '../../navigators/app_router.dart';
+import '../../providers/account_provider.dart';
 import '../../providers/friends_provider.dart';
-import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
@@ -68,14 +66,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ).showSnackBar(const SnackBar(content: Text('Naam opgeslagen.')));
   }
 
-  Future<void> _resetStats() async {
+  Future<void> _deleteAccount() async {
+    final account = context.read<AccountProvider>();
+    final profile = context.read<ProfileProvider>();
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Statistieken wissen?'),
-        content: const Text(
-          'Je XP, overwinningen, je plek op het scorebord en recente '
-          'tegenstanders worden gewist. Je vrienden blijven bewaard. '
+        title: const Text('Account verwijderen?'),
+        content: Text(
+          'Alles wordt voor altijd verwijderd: je naam, XP, overwinningen, '
+          'badges, vrienden, vriendcode, je plek op het scorebord, recente '
+          'tegenstanders en je instellingen'
+          '${account.isGuest ? '' : ', en je login met Google'}. '
           'Dit kan je niet ongedaan maken.',
         ),
         actions: [
@@ -86,16 +88,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: AppColors.redSoft),
-            child: const Text('Wissen'),
+            child: const Text('Verwijderen'),
           ),
         ],
       ),
     );
-    if (ok == true && mounted) {
-      final friends = context.read<FriendsProvider>();
-      await context.read<ProfileProvider>().resetStats();
-      // Also the scorebord, so it matches the (now empty) progress.
-      await friends.resetServerStats();
+    if (ok != true || !mounted) return;
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final message = await account.deleteAccount();
+    if (message == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+    // Gone: start over with a new name, like a fresh install.
+    if (!profile.profile.hasName) {
+      nav.pushNamedAndRemoveUntil(AppRoutes.onboarding, (_) => false);
     }
   }
 
@@ -103,12 +111,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>();
     final social = context.watch<FriendsProvider>();
-    final config = context.select<GameProvider, GameConfig>(
-      (g) => g.state.config,
-    );
-    final recognition = context.select<GameProvider, bool>(
-      (g) => g.recognitionAvailable,
-    );
 
     return Scaffold(
       body: SafeArea(
@@ -174,40 +176,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: profile.setSoundEffects,
             ),
             const SizedBox(height: 14),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('SPELREGELS', style: AppTextStyles.overline()),
-                  const SizedBox(height: 10),
-                  Text(
-                    rulesSummary(config),
-                    style: AppTextStyles.body(14, color: AppColors.textSoft),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Zelfde spreuk: gelijkspel. Niets casten verliest van elke spreuk.',
-                    style: AppTextStyles.caption(),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    recognition
-                        ? 'Gebarenherkenning: model geladen.'
-                        : 'Gebarenherkenning: nog geen model. Tik op een spreuk om te casten.',
-                    style: AppTextStyles.caption(
-                      color: recognition ? AppColors.green : AppColors.gold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
             ChunkyButton(
-              label: 'Statistieken wissen',
+              label: 'Account verwijderen',
+              icon: Icons.delete_forever_rounded,
               display: false,
               height: 52,
               style: ChunkyButtonStyle.secondary,
-              onPressed: _resetStats,
+              loading: context.select<AccountProvider, bool>((a) => a.busy),
+              onPressed: _deleteAccount,
             ),
             const SizedBox(height: 12),
             TextButton.icon(

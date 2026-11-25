@@ -362,6 +362,9 @@ class MockGameBackend implements GameBackend {
     await _emoteCtl.close();
   }
 
+  @override
+  Future<void> openCamera() => _openCamera();
+
   Future<void> _openCamera() async {
     if (!useCamera || _localStream != null) return;
     _localStream = await navigator.mediaDevices.getUserMedia({

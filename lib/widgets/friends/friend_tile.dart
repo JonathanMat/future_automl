@@ -13,6 +13,7 @@ class FriendTile extends StatelessWidget {
     required this.friend,
     this.trailing,
     this.isFriend = false,
+    this.onTap,
   });
 
   final FriendRecord friend;
@@ -23,6 +24,9 @@ class FriendTile extends StatelessWidget {
   /// E.g. an "add friend" button, shown after the record.
   final Widget? trailing;
 
+  /// Opens their profile.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final ahead = friend.wins >= friend.losses;
@@ -32,73 +36,79 @@ class FriendTile extends StatelessWidget {
           'jij ${friend.wins} gewonnen, '
           '${friend.losses} verloren, laatst ${friend.lastPlayed.timeAgo()}',
       excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          children: [
-            AvatarTile(name: friend.name, size: 40),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      button: onTap != null,
+      onTap: onTap,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                AvatarTile(name: friend.name, size: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: Text(
-                          friend.name,
-                          style: AppTextStyles.body(
-                            15,
-                            weight: FontWeight.w900,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              friend.name,
+                              style: AppTextStyles.body(
+                                15,
+                                weight: FontWeight.w900,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          if (isFriend) ...[
+                            const SizedBox(width: 5),
+                            Icon(
+                              Icons.people_alt_rounded,
+                              size: 14,
+                              color: AppColors.textMuted.withValues(alpha: 0.8),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text(
+                        '${friend.games} ${friend.games == 1 ? 'duel' : 'duels'} · '
+                        '${friend.lastPlayed.timeAgo()}',
+                        style: AppTextStyles.body(
+                          12,
+                          weight: FontWeight.w700,
+                          color: AppColors.textMuted,
                         ),
                       ),
-                      if (isFriend) ...[
-                        const SizedBox(width: 5),
-                        Icon(
-                          Icons.people_alt_rounded,
-                          size: 14,
-                          color: AppColors.textMuted.withValues(alpha: 0.8),
-                        ),
-                      ],
                     ],
                   ),
-                  Text(
-                    '${friend.games} ${friend.games == 1 ? 'duel' : 'duels'} · '
-                    '${friend.lastPlayed.timeAgo()}',
-                    style: AppTextStyles.body(
-                      12,
-                      weight: FontWeight.w700,
-                      color: AppColors.textMuted,
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${friend.wins}–${friend.losses}',
+                      style: AppTextStyles.display(
+                        18,
+                        color: ahead ? AppColors.green : AppColors.redSoft,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${friend.wins}–${friend.losses}',
-                  style: AppTextStyles.display(
-                    18,
-                    color: ahead ? AppColors.green : AppColors.redSoft,
-                  ),
+                    Text(
+                      'jij – ${friend.name.split(' ').first}',
+                      style: AppTextStyles.caption(),
+                    ),
+                  ],
                 ),
-                Text(
-                  'jij – ${friend.name.split(' ').first}',
-                  style: AppTextStyles.caption(),
-                ),
+                if (trailing != null) ...[const SizedBox(width: 10), trailing!],
               ],
             ),
-            if (trailing != null) ...[const SizedBox(width: 10), trailing!],
-          ],
+          ),
         ),
       ),
     );

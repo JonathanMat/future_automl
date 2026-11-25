@@ -38,8 +38,23 @@ class CameraPermissionService {
 
   /// [withMicrophone] can turn the microphone off for this check (voice
   /// chat off); it is never asked when [microphone] is false.
-  Future<MediaAccess> ensureAccess({bool withMicrophone = true}) async {
+  ///
+  /// [open] opens the real camera for the call instead of a quick test
+  /// one (see `GameBackend.openCamera`), so it isn't opened twice.
+  Future<MediaAccess> ensureAccess({
+    bool withMicrophone = true,
+    Future<void> Function()? open,
+  }) async {
     if (!enabled) return MediaAccess.granted;
+    if (open != null) {
+      try {
+        await open();
+        return MediaAccess.granted;
+      } catch (e) {
+        debugPrint('Camera access: $e');
+        return classify(e);
+      }
+    }
     final mic = microphone && withMicrophone;
     try {
       final stream = await navigator.mediaDevices.getUserMedia({

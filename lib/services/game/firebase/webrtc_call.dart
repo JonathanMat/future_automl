@@ -25,6 +25,7 @@ class WebRtcCall {
     required this.isCaller,
     this.ice = const IceConfig(),
     this.audio = true,
+    this._localStream,
   });
 
   final DatabaseReference signaling;
@@ -55,8 +56,14 @@ class WebRtcCall {
   /// the own camera while waiting for the opponent.
   Future<MediaStream> openCamera() async {
     if (_localStream case final s?) return s;
+    return _localStream = await openLocalStream(audio: audio);
+  }
+
+  /// Front camera (and microphone with [audio]) at the call's quality.
+  /// Opened before the call when the camera is warmed up ahead of time.
+  static Future<MediaStream> openLocalStream({required bool audio}) async {
     await AudioSession.configure(voice: audio);
-    return _localStream = await navigator.mediaDevices.getUserMedia({
+    return navigator.mediaDevices.getUserMedia({
       'audio': audio,
       'video': {
         'facingMode': 'user',

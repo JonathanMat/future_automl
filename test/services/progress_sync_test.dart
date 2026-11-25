@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_duel/models/duel_summary.dart';
 import 'package:spell_duel/providers/friends_provider.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
-import 'package:spell_duel/services/social/friends_backend.dart';
 import 'package:spell_duel/services/social/mock_friends_backend.dart';
 import 'package:spell_duel/services/storage/local_storage_service.dart';
 
@@ -76,24 +75,41 @@ void main() {
     expect(profile.profile.name, 'Maarten');
   });
 
-  test('resetting stats also resets the scorebord', () async {
+  test('deleting the account removes everything, here and there', () async {
     final profile = await _profile();
-    final backend = MockFriendsBackend()
-      ..board = const LeaderboardEntry(
-        uid: 'mock-me',
-        name: 'Maarten',
-        wins: 2,
-        losses: 0,
-      );
+    await profile.recordGame(_win());
+    await profile.setVoiceChat(false);
+    final backend = MockFriendsBackend(
+      seedFriends: MockFriendsBackend.demoFriends,
+    );
     final friends = FriendsProvider(backend)..attach(profile);
     await pumpEventQueue();
+    expect(backend.savedProgress?['xp'], 120);
+    expect(backend.savedRecent, isNotEmpty);
 
-    await profile.resetStats();
-    await friends.resetServerStats();
+    await friends.deleteServerData();
+    await friends.forget();
+    await profile.wipe();
     await pumpEventQueue();
-    expect(backend.board?.wins, 0);
-    expect(profile.profile.wins, 0);
-    expect(backend.savedProgress?['wins'], 0);
+
+    expect(backend.deleted, isTrue);
+    expect(backend.savedProgress, isNull);
+    expect(backend.savedRecent, isEmpty);
+    expect(friends.isReady, isFalse);
+    expect(friends.friends, isEmpty);
+    expect(profile.profile.hasName, isFalse);
+    expect(profile.profile.xp, 0);
+    expect(profile.friends, isEmpty);
+    expect(profile.voiceChat, isTrue);
+
+    // Nothing comes back after a restart of the app either.
+    final reloaded = ProfileProvider(LocalStorageService());
+    await reloaded.load();
+    expect(reloaded.profile.hasName, isFalse);
+    expect(reloaded.friends, isEmpty);
+    expect(reloaded.voiceChat, isTrue);
+    // And nothing was uploaded again.
+    expect(backend.savedProgress, isNull);
   });
 
   group('recent opponents', () {
@@ -134,19 +150,6 @@ void main() {
       await profile.recordGame(_win());
       await pumpEventQueue();
       expect(backend.savedRecent.first['wins'], 2);
-    });
-
-    test('resetting stats clears them on the server', () async {
-      final profile = await _profile();
-      await profile.recordGame(_win());
-      final backend = MockFriendsBackend();
-      FriendsProvider(backend).attach(profile);
-      await pumpEventQueue();
-      expect(backend.savedRecent, isNotEmpty);
-
-      await profile.resetStats();
-      await pumpEventQueue();
-      expect(backend.savedRecent, isEmpty);
     });
 
     test('after an account switch the server list replaces them', () async {

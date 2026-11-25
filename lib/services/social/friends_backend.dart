@@ -1,4 +1,5 @@
 import '../../models/game_state.dart';
+import '../../models/player_profile.dart';
 
 export '../../models/game_state.dart' show LeaderboardEntry;
 
@@ -27,6 +28,16 @@ class Friend {
     wins: wins,
     losses: losses,
   );
+}
+
+/// Another player's public profile (`users/{uid}`): name, tag, XP,
+/// record, stats and badges.
+class PublicProfile {
+  const PublicProfile({required this.uid, required this.profile, this.tag});
+
+  final String uid;
+  final String? tag;
+  final PlayerProfile profile;
 }
 
 /// Someone who wants to be your friend.
@@ -135,11 +146,19 @@ abstract class FriendsBackend {
   /// Invites friend [toUid] to the room [roomCode] you just made.
   Future<void> sendInvite(String toUid, String roomCode);
 
+  /// Marks your invite to [toUid] as still open (you are still waiting in
+  /// the room), so it doesn't expire for them. Does nothing when they
+  /// already removed it.
+  Future<void> refreshInvite(String toUid);
+
   /// Takes back your invite to [toUid] (they joined, or you left).
   Future<void> cancelInvite(String toUid);
 
   /// Removes an invite sent to you (accepted, declined or expired).
   Future<void> dismissInvite(String fromUid);
+
+  /// The public profile of player [uid], null if they have none.
+  Future<PublicProfile?> loadPlayer(String uid);
 
   /// Your saved XP and record (`users/{uid}/progress`), null if none yet.
   Future<Map<String, Object?>?> loadProgress();
@@ -153,12 +172,11 @@ abstract class FriendsBackend {
   /// Replaces your recent opponents on the server (empty removes them).
   Future<void> saveRecent(List<Map<String, Object?>> recent);
 
-  /// Sets your scorebord entry back to 0 wins and 0 losses.
-  Future<void> resetStats();
-
-  /// Deletes everything of the signed-in player: profile, friend code,
-  /// scorebord entry, friendships and push tokens. Used for a guest that
-  /// is left behind when logging into an existing Google account.
+  /// Deletes everything of the signed-in player: profile, progress,
+  /// recent opponents, friend code, scorebord entry, friendships, friend
+  /// requests, challenges and push tokens. Used for "Account verwijderen"
+  /// and for a guest that is left behind when logging into an existing
+  /// Google account.
   Future<void> deleteMyData();
 
   Future<void> dispose();

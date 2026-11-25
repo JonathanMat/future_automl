@@ -39,6 +39,14 @@ abstract class AccountService {
 
   /// Signs out of Google and continues as a new guest.
   Future<void> signOut();
+
+  /// Deletes the login itself. [deleteData] runs first, while still signed
+  /// in, to remove everything stored for this user on the server.
+  ///
+  /// A Google account is asked to confirm with Google first (deleting
+  /// needs a recent login); returns false when that is canceled, and then
+  /// nothing is deleted. Afterwards no one is signed in.
+  Future<bool> deleteAccount({required Future<void> Function() deleteData});
 }
 
 class AccountException implements Exception {

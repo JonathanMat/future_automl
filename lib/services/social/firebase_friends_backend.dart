@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../models/player_profile.dart';
 import '../../utils/db_values.dart';
 import '../../utils/player_tag.dart';
 import '../../validators/friend_code_validator.dart';
@@ -36,6 +37,11 @@ class FirebaseFriendsBackend implements FriendsBackend {
   String _name = 'Speler';
   String? _tag;
 
+  /// Server time minus this phone's time, in ms. Invite times are server
+  /// times; with this they compare correctly to a phone clock that is off.
+  int _serverOffsetMs = 0;
+  StreamSubscription<DatabaseEvent>? _offsetSub;
+
   String get _me {
     final uid = _uid;
     if (uid == null) throw FriendsException('Nog niet ingelogd.');
@@ -54,6 +60,13 @@ class FirebaseFriendsBackend implements FriendsBackend {
     if (user == null) throw FriendsException('Inloggen mislukt.');
     final uid = _uid = user.uid;
     _name = _clean(name);
+    _offsetSub ??= _db
+        .ref('.info/serverTimeOffset')
+        .onValue
+        .listen(
+          (e) => _serverOffsetMs = _asInt(e.snapshot.value),
+          onError: (Object e) => debugPrint('serverTimeOffset: $e'),
+        );
 
     final me = _db.ref('users/$uid');
     final existing = _asMap((await me.get()).value) ?? const {};
@@ -274,7 +287,9 @@ class FirebaseFriendsBackend implements FriendsBackend {
               name: DbValues.text(v['name']) ?? 'Speler',
               tag: PlayerTag.parse(v['tag']),
               roomCode: DbValues.text(v['roomCode']) ?? '',
-              sentAt: DateTime.fromMillisecondsSinceEpoch(_asInt(v['at'])),
+              sentAt: DateTime.fromMillisecondsSinceEpoch(
+                _asInt(v['at']) - _serverOffsetMs,
+              ),
             ),
           );
         }
@@ -291,6 +306,14 @@ class FirebaseFriendsBackend implements FriendsBackend {
       });
 
   @override
+  Future<void> refreshInvite(String toUid) async {
+    final ref = _db.ref('invites/$toUid/$_me');
+    // Only while it is still there: a declined invite stays declined.
+    if (!(await ref.child('roomCode').get()).exists) return;
+    await ref.child('at').set(ServerValue.timestamp);
+  }
+
+  @override
   Future<void> cancelInvite(String toUid) =>
       _db.ref('invites/$toUid/$_me').remove();
 
@@ -299,10 +322,28 @@ class FirebaseFriendsBackend implements FriendsBackend {
       _db.ref('invites/$_me/$fromUid').remove();
 
   @override
-  Future<Map<String, Object?>?> loadProgress() async {
-    final v = _asMap((await _db.ref('users/$_me/progress').get()).value);
+  Future<PublicProfile?> loadPlayer(String uid) async {
+    final user = _asMap((await _db.ref('users/$uid').get()).value);
+    if (user == null) return null;
+    final progress = _intsMap(_asMap(user['progress'])) ?? const {};
+    return PublicProfile(
+      uid: uid,
+      tag: PlayerTag.parse(user['tag']),
+      profile: PlayerProfile.fromJson({
+        ...progress,
+        'name': DbValues.text(user['name']) ?? 'Speler',
+      }),
+    );
+  }
+
+  @override
+  Future<Map<String, Object?>?> loadProgress() async =>
+      _intsMap(_asMap((await _db.ref('users/$_me/progress').get()).value));
+
+  /// [v] with string keys and every number as an int (the database hands
+  /// numbers back as num; the profile model wants ints).
+  static Map<String, Object?>? _intsMap(Map<Object?, Object?>? v) {
     if (v == null) return null;
-    // Numbers come back as num; the profile model wants ints.
     Object? clean(Object? x) => switch (x) {
       final num n => n.toInt(),
       final Map m => {for (final e in m.entries) '${e.key}': clean(e.value)},
@@ -348,13 +389,6 @@ class FirebaseFriendsBackend implements FriendsBackend {
   }
 
   @override
-  Future<void> resetStats() async {
-    final board = _db.ref('leaderboard/$_me');
-    if (!(await board.child('wins').get()).exists) return;
-    await board.update({'wins': 0, 'losses': 0});
-  }
-
-  @override
   Future<void> deleteMyData() async {
     final me = _uid;
     if (me == null) return;
@@ -367,11 +401,32 @@ class FirebaseFriendsBackend implements FriendsBackend {
       }
     }
 
-    final friends = (await _db.ref('friends/$me').get()).children
+    Future<List<String>> keys(String path) async => (await _db.ref(path).get())
+        .children
         .map((c) => c.key)
-        .whereType<String>();
-    for (final uid in friends) {
+        .whereType<String>()
+        .toList();
+
+    for (final uid in await keys('friends/$me')) {
+      await run('invite', () => cancelInvite(uid));
       await run('friend', () => remove(uid));
+    }
+    // Requests you sent can't be listed; recent opponents are the players
+    // you could have sent one to.
+    for (final r in await loadRecent()) {
+      if (r['uid'] case final String uid when uid != me) {
+        await run(
+          'sent request',
+          () => _db.ref('friendRequests/$uid/$me').remove(),
+        );
+      }
+    }
+    // One by one: the rules only allow removing single requests/invites.
+    for (final uid in await keys('friendRequests/$me')) {
+      await run('request', () => _db.ref('friendRequests/$me/$uid').remove());
+    }
+    for (final uid in await keys('invites/$me')) {
+      await run('invite', () => dismissInvite(uid));
     }
     final code = (await _db.ref('users/$me/friendCode').get()).value;
     if (code is String) {
@@ -383,7 +438,9 @@ class FirebaseFriendsBackend implements FriendsBackend {
   }
 
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async {
+    await _offsetSub?.cancel();
+  }
 
   static String _clean(String name) =>
       name.trim().isEmpty ? 'Speler' : name.trim();

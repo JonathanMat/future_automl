@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../models/player_profile.dart';
+import '../../models/player_stats.dart';
 import '../../validators/friend_code_validator.dart';
 import 'friends_backend.dart';
 
@@ -73,14 +75,6 @@ class MockFriendsBackend implements FriendsBackend {
   Stream<LeaderboardEntry?> myStats() => Stream.value(board);
 
   @override
-  Future<void> resetStats() async {
-    final b = board;
-    if (b != null) {
-      board = LeaderboardEntry(uid: b.uid, name: b.name, wins: 0, losses: 0);
-    }
-  }
-
-  @override
   Future<AddFriendResult> addByCode(String code) async {
     final c = FriendCodeValidator.normalize(code);
     if (c == myCode) throw FriendsException('Dat ben je zelf.');
@@ -135,6 +129,23 @@ class MockFriendsBackend implements FriendsBackend {
   Future<void> sendInvite(String toUid, String roomCode) async =>
       sentInvites[toUid] = roomCode;
 
+  /// How often each invite was refreshed (for tests).
+  final Map<String, int> refreshedInvites = {};
+
+  @override
+  Future<void> refreshInvite(String toUid) async {
+    if (!sentInvites.containsKey(toUid)) return;
+    refreshedInvites[toUid] = (refreshedInvites[toUid] ?? 0) + 1;
+  }
+
+  /// Adds an invite sent to you, as if a friend just challenged you.
+  void receiveInvite(ChallengeInvite invite) {
+    _invites
+      ..removeWhere((i) => i.fromUid == invite.fromUid)
+      ..add(invite);
+    if (!_invitesCtl.isClosed) _invitesCtl.add(List.of(_invites));
+  }
+
   @override
   Future<void> cancelInvite(String toUid) async => sentInvites.remove(toUid);
 
@@ -147,6 +158,39 @@ class MockFriendsBackend implements FriendsBackend {
   void _emit() {
     if (!_friendsCtl.isClosed) _friendsCtl.add(_friendList);
     if (!_requestsCtl.isClosed) _requestsCtl.add(List.of(_requests));
+  }
+
+  /// Extra public profiles for [loadPlayer], by uid (for tests).
+  final Map<String, PublicProfile> players = {};
+
+  @override
+  Future<PublicProfile?> loadPlayer(String uid) async {
+    if (players[uid] case final p?) return p;
+    final f = _friends[uid];
+    if (f == null) return null;
+    // Made-up but steady stats, so the profile page has something to show.
+    final seed = uid.codeUnits.fold(0, (a, c) => a + c);
+    return PublicProfile(
+      uid: uid,
+      tag: f.tag,
+      profile: PlayerProfile(
+        name: f.name,
+        xp: f.wins * 60 + f.losses * 25,
+        wins: f.wins,
+        losses: f.losses,
+        streak: seed % 3,
+        stats: PlayerStats({
+          'wins_vuur': f.wins + seed % 5,
+          'wins_ijs': f.wins ~/ 2 + seed % 4,
+          'wins_bliksem': f.wins ~/ 3 + seed % 3,
+          'wins_schild': seed % 6,
+          'flawless': f.wins ~/ 4,
+          'bestStreak': 1 + seed % 5,
+          if (f.wins > 0) 'fastestMs': 420 + seed % 300,
+        }),
+        badges: {if (f.wins > 0) 'eerste_winst': 0},
+      ),
+    );
   }
 
   /// What [saveProgress] stored last (for tests).
@@ -176,6 +220,9 @@ class MockFriendsBackend implements FriendsBackend {
   Future<void> deleteMyData() async {
     deleted = true;
     _friends.clear();
+    _requests.clear();
+    _invites.clear();
+    if (!_invitesCtl.isClosed) _invitesCtl.add(const []);
     savedProgress = null;
     savedRecent = [];
     board = null;

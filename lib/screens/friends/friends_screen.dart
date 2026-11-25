@@ -6,7 +6,6 @@ import '../../navigators/room_flow.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
-import '../../services/social/friends_backend.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
@@ -20,6 +19,7 @@ import '../../widgets/friends/social_tiles.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/screen_header.dart';
+import '../profile/profile_screen.dart';
 
 /// Your friend code, friend requests (as a banner on top), friends (on the server) and the
 /// people you recently dueled (on this phone).
@@ -37,31 +37,6 @@ class FriendsScreen extends StatelessWidget {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(r.message)));
     return r.ok;
-  }
-
-  Future<void> _confirmRemove(BuildContext context, Friend friend) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${friend.name} verwijderen?'),
-        content: const Text(
-          'Jullie staan dan niet meer op elkaars vriendenscorebord.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuleren'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.redSoft),
-            child: const Text('Verwijderen'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) return;
-    await _run(context, context.read<FriendsProvider>().remove(friend));
   }
 
   @override
@@ -124,7 +99,14 @@ class FriendsScreen extends StatelessWidget {
                 ServerFriendTile(
                   friend: f,
                   busy: social.isWorking(f.uid),
-                  onRemove: () => _confirmRemove(context, f),
+                  onOpen: () => ProfileScreen.open(
+                    context,
+                    uid: f.uid,
+                    name: f.name,
+                    tag: f.tag,
+                    wins: f.wins,
+                    losses: f.losses,
+                  ),
                   onChallenge: busy
                       ? null
                       : () => RoomFlow.challenge(context, f),
@@ -140,6 +122,13 @@ class FriendsScreen extends StatelessWidget {
                   friend: r,
                   isFriend: r.uid != null && social.isFriend(r.uid!),
                   trailing: _addButton(context, social, r),
+                  onTap: r.uid == null
+                      ? null
+                      : () => ProfileScreen.open(
+                          context,
+                          uid: r.uid,
+                          name: r.name,
+                        ),
                 ),
                 const SizedBox(height: 8),
               ],

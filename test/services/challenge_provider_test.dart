@@ -53,6 +53,7 @@ void main() {
       friends: friends,
       game: game,
       push: push,
+      refreshEvery: const Duration(milliseconds: 20),
       clock: () => now,
     );
     await pumpEventQueue();
@@ -127,10 +128,64 @@ void main() {
     game.notifyListeners();
     expect(backend.sentInvites, {'x': 'ABCD'});
     expect(challenges.outgoing?.name, 'X');
-    expect(challenges.outgoingExpiresAt, now.add(ChallengeProvider.maxAge));
+    expect(challenges.outgoingExpiresAt, now.add(ChallengeProvider.maxWait));
 
     await challenges.cancelOutgoing();
     expect(backend.sentInvites, isEmpty);
     expect(challenges.outgoing, isNull);
+  });
+
+  test('a dismissed challenge does not hide the next one from them', () async {
+    final first = ChallengeInvite(
+      fromUid: 'a',
+      name: 'Lotte',
+      roomCode: 'ABCD',
+      sentAt: now.subtract(const Duration(seconds: 5)),
+    );
+    await setup(invites: [first]);
+    await challenges.dismiss(first);
+    await pumpEventQueue();
+    expect(challenges.incoming, isEmpty);
+
+    // Lotte challenges again later, with a new room.
+    backend.receiveInvite(
+      ChallengeInvite(
+        fromUid: 'a',
+        name: 'Lotte',
+        roomCode: 'WXYZ',
+        sentAt: now,
+      ),
+    );
+    await pumpEventQueue();
+    expect(challenges.incoming.single.roomCode, 'WXYZ');
+  });
+
+  test('an invite that arrives during a duel is there after it', () async {
+    await setup();
+    await game.createRoom('Maarten');
+    backend.receiveInvite(
+      ChallengeInvite(
+        fromUid: 'a',
+        name: 'Lotte',
+        roomCode: 'WXYZ',
+        sentAt: now.subtract(const Duration(seconds: 30)),
+      ),
+    );
+    await pumpEventQueue();
+    await game.leave();
+    await pumpEventQueue();
+    expect(challenges.incoming.single.name, 'Lotte');
+  });
+
+  test('a waiting invite is kept fresh until the friend joins', () async {
+    await setup();
+    await challenges.send(const Friend(uid: 'x', name: 'X'), 'ABCD');
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    expect(backend.refreshedInvites['x'], greaterThanOrEqualTo(2));
+
+    await challenges.cancelOutgoing();
+    final count = backend.refreshedInvites['x'];
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(backend.refreshedInvites['x'], count);
   });
 }

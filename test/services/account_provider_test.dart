@@ -40,6 +40,40 @@ void main() {
     account.dispose();
   });
 
+  test('deleting runs the data cleanup and forgets the user', () async {
+    final service = MockAccountService();
+    final steps = <String>[];
+    var changes = 0;
+    final account = AccountProvider(
+      service,
+      onUserChanged: () => changes++,
+      beforeSignOut: () async => steps.add('push'),
+      deleteData: () async => steps.add('server'),
+      onDeleted: () async => steps.add('local'),
+    );
+
+    expect(await account.deleteAccount(), 'Je account is verwijderd.');
+    await pumpEventQueue();
+    expect(steps, ['push', 'server', 'local']);
+    expect(service.deleted, isTrue);
+    expect(account.info.uid, isNull);
+    expect(account.busy, isFalse);
+    expect(changes, 0);
+    account.dispose();
+  });
+
+  test('a failed cleanup keeps the account', () async {
+    final service = MockAccountService();
+    final account = AccountProvider(
+      service,
+      deleteData: () => throw AccountException('Geen internet.'),
+    );
+    expect(await account.deleteAccount(), 'Geen internet.');
+    expect(service.deleted, isFalse);
+    expect(account.info.uid, 'mock-me');
+    account.dispose();
+  });
+
   test('errors become a message', () async {
     final account = AccountProvider(_FailingAccount());
     expect(await account.signInWithGoogle(), 'Niet ingesteld.');
