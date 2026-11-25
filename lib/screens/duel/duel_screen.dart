@@ -27,7 +27,6 @@ import '../../widgets/duel/gesture_debug_overlay.dart';
 import '../../widgets/duel/spell_card_grid.dart';
 import '../../widgets/duel/video_feed.dart';
 import '../../widgets/generic/avatar_tile.dart';
-import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/duel/effects/fx_plan.dart';
 
 /// The live duel: opponent on top, you at the bottom, countdown and
@@ -348,11 +347,7 @@ class _DuelScreenState extends State<DuelScreen> {
                       const SizedBox(height: 14),
                       SizedBox(
                         height: 104,
-                        child: _BottomArea(
-                          state: s,
-                          game: game,
-                          onOpenResult: _openResult,
-                        ),
+                        child: _BottomArea(state: s, game: game),
                       ),
                     ],
                   ),
@@ -385,18 +380,10 @@ class _DuelScreenState extends State<DuelScreen> {
 }
 
 class _BottomArea extends StatelessWidget {
-  const _BottomArea({
-    required this.state,
-    required this.game,
-    required this.onOpenResult,
-  });
+  const _BottomArea({required this.state, required this.game});
 
   final GameState state;
   final GameProvider game;
-
-  /// Opens the result screen now (it also opens by itself after the final
-  /// effect).
-  final VoidCallback onOpenResult;
 
   @override
   Widget build(BuildContext context) {
@@ -408,20 +395,20 @@ class _BottomArea extends StatelessWidget {
 
     switch (s.phase) {
       case GamePhase.finished:
+        // No button: the result screen opens by itself after the final
+        // effect, and a button flashing up right before that looked odd.
         final won = s.iWon ?? false;
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ChunkyButton(
-              label: won ? 'GEWONNEN! BEKIJK RESULTAAT' : 'BEKIJK RESULTAAT',
-              height: 62,
-              fontSize: 22,
-              style: won
-                  ? ChunkyButtonStyle.success
-                  : ChunkyButtonStyle.primary,
-              onPressed: onOpenResult,
+            Text(
+              won ? 'Je hebt gewonnen!' : 'Je hebt verloren',
+              style: AppTextStyles.display(
+                22,
+                color: won ? AppColors.green : AppColors.lavender,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               won
                   ? '$opponentName heeft geen levens meer'

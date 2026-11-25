@@ -8,9 +8,17 @@ import '../generic/avatar_tile.dart';
 
 /// A recent opponent with your head-to-head record.
 class FriendTile extends StatelessWidget {
-  const FriendTile({super.key, required this.friend, this.trailing});
+  const FriendTile({
+    super.key,
+    required this.friend,
+    this.trailing,
+    this.isFriend = false,
+  });
 
   final FriendRecord friend;
+
+  /// Already a friend: a small icon next to the name says so.
+  final bool isFriend;
 
   /// E.g. an "add friend" button, shown after the record.
   final Widget? trailing;
@@ -20,7 +28,8 @@ class FriendTile extends StatelessWidget {
     final ahead = friend.wins >= friend.losses;
     return Semantics(
       label:
-          '${friend.name}: jij ${friend.wins} gewonnen, '
+          '${friend.name}${isFriend ? ' (vriend)' : ''}: '
+          'jij ${friend.wins} gewonnen, '
           '${friend.losses} verloren, laatst ${friend.lastPlayed.timeAgo()}',
       excludeSemantics: true,
       child: Container(
@@ -37,11 +46,28 @@ class FriendTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    friend.name,
-                    style: AppTextStyles.body(15, weight: FontWeight.w900),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          friend.name,
+                          style: AppTextStyles.body(
+                            15,
+                            weight: FontWeight.w900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isFriend) ...[
+                        const SizedBox(width: 5),
+                        Icon(
+                          Icons.people_alt_rounded,
+                          size: 14,
+                          color: AppColors.textMuted.withValues(alpha: 0.8),
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
                     '${friend.games} ${friend.games == 1 ? 'duel' : 'duels'} · '

@@ -10,6 +10,7 @@ import '../../providers/tournament_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/friends/challenge_banner.dart';
+import '../../widgets/friends/friend_request_banner.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/crossed_swords_icon.dart';
@@ -54,6 +55,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             const ChallengeBanner(padding: EdgeInsets.only(bottom: 20)),
+            const FriendRequestBanner(padding: EdgeInsets.only(bottom: 20)),
             const SpellHeroCard(),
             const SizedBox(height: 20),
             ChunkyButton(

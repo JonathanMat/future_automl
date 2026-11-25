@@ -86,55 +86,6 @@ class _Spinner extends StatelessWidget {
   );
 }
 
-/// An incoming friend request with accept / decline.
-class FriendRequestTile extends StatelessWidget {
-  const FriendRequestTile({
-    super.key,
-    required this.request,
-    required this.onAccept,
-    required this.onDecline,
-    this.busy = false,
-  });
-
-  final FriendRequest request;
-  final VoidCallback onAccept;
-  final VoidCallback onDecline;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    return _PlayerRow(
-      name: request.name,
-      tag: request.tag,
-      subtitle: 'Wil je vriend worden',
-      trailing: busy
-          ? const _Spinner()
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Weiger ${request.name}',
-                  onPressed: onDecline,
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                IconButton.filled(
-                  tooltip: 'Accepteer ${request.name}',
-                  onPressed: onAccept,
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.green,
-                    foregroundColor: AppColors.greenInk,
-                  ),
-                  icon: const Icon(Icons.check_rounded),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
 /// A confirmed friend with their overall record and a remove action.
 class ServerFriendTile extends StatelessWidget {
   const ServerFriendTile({

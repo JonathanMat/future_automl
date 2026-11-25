@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "123043703474-2rieqd4pak6842078n2nj1pk532ls576.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.spellduel.spell_duel",
+            "certificate_hash": "ea2b5564872dbfcce4afc9eee242bf05dc7a9155"
+          }
+        },
+        {
           "client_id": "123043703474-3fr91ju07b06c3rqfus5aj5o0rnn7td6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

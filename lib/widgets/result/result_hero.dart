@@ -8,6 +8,7 @@ import '../../models/spell_info.dart';
 import '../../services/audio/sfx_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../theme/app_transitions.dart';
 
 /// The badge and "GEWONNEN!" / "VERLOREN" at the top of the result screen,
 /// each with its own animation, timed to its sound:
@@ -41,8 +42,11 @@ class ResultHero extends StatefulWidget {
   static const winNotes = [0.0, 0.14, 0.28];
   static const loseNotes = [0.0, 0.42, 0.84];
 
-  /// Wait for the screen's own entrance animation first.
-  static const startDelay = Duration(milliseconds: 350);
+  /// Wait until the screen's entrance animation is done and the duel
+  /// screen (cameras, video) is gone: that teardown would make the first
+  /// notes stutter.
+  static final startDelay =
+      AppTransitions.revealDuration + const Duration(milliseconds: 120);
 
   /// How long the entrance animation runs, from the first note.
   static Duration animationLength(bool won) =>
@@ -130,67 +134,70 @@ class _ResultHeroState extends State<ResultHero>
           ),
         ),
       ),
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (context, _) {
-          final t = _c.isDismissed ? -1.0 : _t;
-          return Column(
-            children: [
-              SizedBox(
-                height: 150,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    if (won)
-                      _Rays(t: t - ResultHero.winNotes[2])
-                    else
-                      Positioned(
-                        top: -34,
-                        left: 0,
-                        right: 0,
-                        height: 190,
-                        child: _RainCloud(t: t - ResultHero.loseNotes[2]),
+      // Repaints every frame: keep that away from the rest of the screen.
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) {
+            final t = _c.isDismissed ? -1.0 : _t;
+            return Column(
+              children: [
+                SizedBox(
+                  height: 150,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      if (won)
+                        _Rays(t: t - ResultHero.winNotes[2])
+                      else
+                        Positioned(
+                          top: -34,
+                          left: 0,
+                          right: 0,
+                          height: 190,
+                          child: _RainCloud(t: t - ResultHero.loseNotes[2]),
+                        ),
+                      CompositedTransformTarget(
+                        link: _anchor,
+                        child: won ? _winBadge(t) : _loseBadge(t),
                       ),
-                    CompositedTransformTarget(
-                      link: _anchor,
-                      child: won ? _winBadge(t) : _loseBadge(t),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Semantics(
-                // Its own node, so the heading isn't merged with the line
-                // under it.
-                container: true,
-                header: true,
-                label: won ? 'Gewonnen!' : 'Verloren',
-                excludeSemantics: true,
-                child: _Title(
-                  text: won ? 'GEWONNEN!' : 'VERLOREN',
-                  won: won,
-                  t: t,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Opacity(
-                opacity: ((t - (won ? .7 : 1.4)) / .4).clamp(0.0, 1.0),
-                child: Text(
-                  won
-                      ? 'Je versloeg $name in $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.'
-                      : '$name won na $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.${widget.offerRematch ? ' Revanche?' : ''}',
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.body(
-                    15,
-                    weight: FontWeight.w700,
-                    color: AppColors.textSoft,
+                    ],
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+                const SizedBox(height: 14),
+                Semantics(
+                  // Its own node, so the heading isn't merged with the line
+                  // under it.
+                  container: true,
+                  header: true,
+                  label: won ? 'Gewonnen!' : 'Verloren',
+                  excludeSemantics: true,
+                  child: _Title(
+                    text: won ? 'GEWONNEN!' : 'VERLOREN',
+                    won: won,
+                    t: t,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Opacity(
+                  opacity: ((t - (won ? .7 : 1.4)) / .4).clamp(0.0, 1.0),
+                  child: Text(
+                    won
+                        ? 'Je versloeg $name in $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.'
+                        : '$name won na $rounds ${rounds == 1 ? 'ronde' : 'rondes'}.${widget.offerRematch ? ' Revanche?' : ''}',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.body(
+                      15,
+                      weight: FontWeight.w700,
+                      color: AppColors.textSoft,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -217,7 +224,7 @@ class _ResultHeroState extends State<ResultHero>
         angle: -.105 + wiggle,
         child: Transform.scale(
           scale: max(0, scale),
-          child: const _Badge(won: true),
+          child: const RepaintBoundary(child: _Badge(won: true)),
         ),
       ),
     );
@@ -243,7 +250,7 @@ class _ResultHeroState extends State<ResultHero>
         child: Transform.rotate(
           angle: -.105 + swing,
           alignment: const Alignment(-.8, -.8),
-          child: const _Badge(won: false),
+          child: const RepaintBoundary(child: _Badge(won: false)),
         ),
       ),
     );
@@ -329,14 +336,11 @@ class _Title extends StatelessWidget {
     final start = ResultHero.winNotes[2] + .035 * i;
     final k = ((t - start) / .3).clamp(0.0, 1.0);
     final scale = Curves.elasticOut.transform(k);
-    return Opacity(
-      opacity: (k * 4).clamp(0.0, 1.0),
-      child: Transform.translate(
-        offset: Offset(0, 18 * (1 - Curves.easeOut.transform(k))),
-        child: Transform.scale(
-          scale: scale,
-          child: Text(ch, style: style),
-        ),
+    return Transform.translate(
+      offset: Offset(0, 18 * (1 - Curves.easeOut.transform(k))),
+      child: Transform.scale(
+        scale: scale,
+        child: Text(ch, style: _faded(style, (k * 4).clamp(0.0, 1.0))),
       ),
     );
   }
@@ -353,15 +357,30 @@ class _Title extends StatelessWidget {
     );
     final sag = 9 * sin(pi * (i + .5) / n) * sagK;
     final tilt = (i.isEven ? 1 : -1) * .07 * sagK;
-    return Opacity(
-      opacity: k,
-      child: Transform.translate(
-        offset: Offset(0, drop + sag),
-        child: Transform.rotate(
-          angle: tilt,
-          child: Text(ch, style: style),
-        ),
+    return Transform.translate(
+      offset: Offset(0, drop + sag),
+      child: Transform.rotate(
+        angle: tilt,
+        child: Text(ch, style: _faded(style, k)),
       ),
+    );
+  }
+
+  /// [style] at [opacity], by fading its colours instead of an Opacity
+  /// layer per letter (those made the slow "VERLOREN" stutter).
+  static TextStyle _faded(TextStyle style, double opacity) {
+    if (opacity >= 1) return style;
+    Color fade(Color c) => c.withValues(alpha: c.a * opacity);
+    return style.copyWith(
+      color: fade(style.color!),
+      shadows: [
+        for (final sh in style.shadows ?? const <Shadow>[])
+          Shadow(
+            color: fade(sh.color),
+            offset: sh.offset,
+            blurRadius: sh.blurRadius,
+          ),
+      ],
     );
   }
 }

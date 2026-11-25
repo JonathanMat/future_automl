@@ -12,6 +12,7 @@ import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../widgets/friends/challenge_banner.dart';
+import '../../widgets/friends/friend_request_banner.dart';
 import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/screen_header.dart';
 import '../../widgets/leaderboard/animated_board.dart';
@@ -85,6 +86,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               const ScreenHeader(title: 'Scorebord', onBack: null),
               const SizedBox(height: 16),
               const ChallengeBanner(padding: EdgeInsets.only(bottom: 16)),
+              const FriendRequestBanner(padding: EdgeInsets.only(bottom: 16)),
               SegmentedTabs(
                 labels: const ['Vrienden', 'Global'],
                 selected: _tab,

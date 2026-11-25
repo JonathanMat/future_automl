@@ -13,6 +13,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/friends/add_friend_button.dart';
 import '../../widgets/friends/add_friend_row.dart';
 import '../../widgets/friends/challenge_banner.dart';
+import '../../widgets/friends/friend_request_banner.dart';
 import '../../widgets/friends/friend_code_card.dart';
 import '../../widgets/friends/friend_tile.dart';
 import '../../widgets/friends/social_tiles.dart';
@@ -20,7 +21,7 @@ import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/screen_header.dart';
 
-/// Your friend code, friend requests, friends (on the server) and the
+/// Your friend code, friend requests (as a banner on top), friends (on the server) and the
 /// people you recently dueled (on this phone).
 class FriendsScreen extends StatelessWidget {
   const FriendsScreen({super.key});
@@ -82,6 +83,7 @@ class FriendsScreen extends StatelessWidget {
             const ScreenHeader(title: 'Vrienden', onBack: null),
             const SizedBox(height: 16),
             const ChallengeBanner(padding: EdgeInsets.only(bottom: 16)),
+            const FriendRequestBanner(padding: EdgeInsets.only(bottom: 16)),
             if (social.error != null && !social.isReady)
               _ErrorCard(
                 message: social.error!,
@@ -107,20 +109,6 @@ class FriendsScreen extends StatelessWidget {
                   style: AppTextStyles.caption(),
                 ),
               ),
-            ],
-            if (social.requests.isNotEmpty) ...[
-              const SizedBox(height: 22),
-              Text('VERZOEKEN', style: AppTextStyles.overline()),
-              const SizedBox(height: 10),
-              for (final r in social.requests) ...[
-                FriendRequestTile(
-                  request: r,
-                  busy: social.isWorking(r.fromUid),
-                  onAccept: () => _run(context, social.accept(r)),
-                  onDecline: () => _run(context, social.decline(r)),
-                ),
-                const SizedBox(height: 8),
-              ],
             ],
             const SizedBox(height: 22),
             Text('VRIENDEN', style: AppTextStyles.overline()),
@@ -148,7 +136,11 @@ class FriendsScreen extends StatelessWidget {
               Text('RECENT GESPEELD', style: AppTextStyles.overline()),
               const SizedBox(height: 10),
               for (final r in recent) ...[
-                FriendTile(friend: r, trailing: _addButton(context, social, r)),
+                FriendTile(
+                  friend: r,
+                  isFriend: r.uid != null && social.isFriend(r.uid!),
+                  trailing: _addButton(context, social, r),
+                ),
                 const SizedBox(height: 8),
               ],
             ],
@@ -158,8 +150,8 @@ class FriendsScreen extends StatelessWidget {
     );
   }
 
-  /// Add-friend button next to a recent opponent. Stays after they
-  /// became a friend, as a green check.
+  /// Add-friend button next to a recent opponent. Gone once they are a
+  /// friend (the tile shows a small friend icon instead).
   Widget? _addButton(
     BuildContext context,
     FriendsProvider social,
@@ -167,9 +159,8 @@ class FriendsScreen extends StatelessWidget {
   ) {
     final uid = r.uid;
     if (uid == null || !social.isReady || uid == social.myUid) return null;
-    final state = social.isFriend(uid)
-        ? AddFriendState.friends
-        : social.isWorking(uid)
+    if (social.isFriend(uid)) return null;
+    final state = social.isWorking(uid)
         ? AddFriendState.working
         : social.requestSent(uid)
         ? AddFriendState.sent

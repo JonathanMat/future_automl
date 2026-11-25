@@ -41,10 +41,13 @@ abstract final class AppTransitions {
 
   /// The result screen after a duel: zooms in from a little smaller with a
   /// slight overshoot, like the "GEWONNEN" banner before it.
+  /// How long [reveal] takes.
+  static const revealDuration = Duration(milliseconds: 650);
+
   static Route<T> reveal<T>(Widget page, RouteSettings settings) {
     return PageRouteBuilder<T>(
       settings: settings,
-      transitionDuration: const Duration(milliseconds: 650),
+      transitionDuration: revealDuration,
       reverseTransitionDuration: fast,
       pageBuilder: (_, _, _) => page,
       transitionsBuilder: (_, animation, _, child) {

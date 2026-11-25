@@ -16,14 +16,11 @@ enum AddFriendState {
 
   /// Your request is waiting for their answer.
   sent,
-
-  /// Already friends.
-  friends,
 }
 
 /// Small icon-only button to add a recent opponent as a friend. Same
 /// chunky style as the "Duel" button next to a friend; it turns into
-/// "sent" or "friends" once done.
+/// "sent" once the request is out.
 class AddFriendButton extends StatelessWidget {
   const AddFriendButton({
     super.key,
@@ -71,12 +68,6 @@ class AddFriendButton extends StatelessWidget {
         'Verzoek verstuurd, wacht op $name',
         false,
       ),
-      AddFriendState.friends => (
-        Icons.check_rounded,
-        ChunkyButtonStyle.success,
-        'Jij en $name zijn vrienden',
-        false,
-      ),
     };
     return Tooltip(
       message: tip,
@@ -106,7 +97,7 @@ class AddFriendButton extends StatelessWidget {
             style: style,
             semanticLabel: tip,
             loading: state == AddFriendState.working,
-            // "Sent" and "friends" are outcomes, not unavailable actions:
+            // "Sent" is an outcome, not an unavailable action:
             // keep them fully visible (their colour says it all).
             dimWhenDisabled: false,
             onPressed: tappable ? onPressed : null,

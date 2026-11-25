@@ -222,10 +222,10 @@ void main() {
       // Never cast: casting nothing loses every round, so the game ends.
       await tester.tap(find.text('DUEL STARTEN'));
       for (var i = 0; i < 300; i++) {
-        if (find.text('BEKIJK RESULTAAT').evaluate().isNotEmpty) break;
+        if (find.text('Je hebt verloren').evaluate().isNotEmpty) break;
         await realTime(const Duration(milliseconds: 100));
       }
-      expect(find.text('BEKIJK RESULTAAT'), findsOneWidget);
+      expect(find.text('Je hebt verloren'), findsOneWidget);
 
       // No tap needed: the result screen opens after the final effect.
       await realTime(const Duration(seconds: 4));
@@ -238,7 +238,7 @@ void main() {
       await realTime(const Duration(milliseconds: 1500));
       expect(find.text('REVANCHE'), findsNothing);
       // A clean new game: full lives, no replay of the old final round.
-      expect(find.text('BEKIJK RESULTAAT'), findsNothing);
+      expect(find.text('Je hebt verloren'), findsNothing);
       expect(find.text('Volgende ronde start zo…'), findsNothing);
 
       await tester.binding.handlePopRoute();
