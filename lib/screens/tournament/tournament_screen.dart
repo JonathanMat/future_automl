@@ -310,7 +310,7 @@ class _TournamentScreenState extends State<TournamentScreen> {
                       display: false,
                       height: 52,
                       style: m.winner == p.uid
-                          ? ChunkyButtonStyle.success
+                          ? ChunkyButtonStyle.primary
                           : ChunkyButtonStyle.secondary,
                       onPressed: () => Navigator.of(context).pop(p.uid),
                     ),

@@ -102,7 +102,7 @@ class MatchStatusCard extends StatelessWidget {
             label: t.inMatch ? 'BEZIG…' : 'SPEEL DUEL',
             height: 54,
             fontSize: 20,
-            style: ChunkyButtonStyle.success,
+            style: ChunkyButtonStyle.primary,
             onPressed: t.inMatch ? null : onPlay,
           ),
           WalkoverAction(t: t),

@@ -126,7 +126,7 @@ class WaitingRoom extends StatelessWidget {
                   icon: n < 2
                       ? Icons.hourglass_top_rounded
                       : Icons.play_arrow_rounded,
-                  style: ChunkyButtonStyle.success,
+                  style: ChunkyButtonStyle.primary,
                   dimWhenDisabled: n >= 2,
                   loading: busy,
                   onPressed: n < 2 || busy ? null : onStart,

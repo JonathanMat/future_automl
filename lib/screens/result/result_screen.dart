@@ -300,7 +300,7 @@ class _TournamentButtons extends StatelessWidget {
           icon: Icons.account_tree_rounded,
           height: 62,
           fontSize: 22,
-          style: won ? ChunkyButtonStyle.success : ChunkyButtonStyle.primary,
+          style: ChunkyButtonStyle.primary,
           onPressed: onBack,
         ),
       ],

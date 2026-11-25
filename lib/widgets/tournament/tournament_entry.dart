@@ -85,7 +85,7 @@ class _TournamentEntryState extends State<TournamentEntry>
         ChunkyButton(
           label: 'TOERNOOI MAKEN',
           icon: Icons.account_tree_rounded,
-          style: ChunkyButtonStyle.success,
+          style: ChunkyButtonStyle.primary,
           loading: widget.busy,
           onPressed: widget.busy ? null : widget.onCreate,
         ),

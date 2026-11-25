@@ -212,7 +212,7 @@ class _CallUpOverlayState extends State<CallUpOverlay>
                             label: 'SPEEL NU',
                             height: 60,
                             fontSize: 22,
-                            style: ChunkyButtonStyle.success,
+                            style: ChunkyButtonStyle.primary,
                             loading: widget.stage == CallUpStage.joining,
                             onPressed: widget.stage == CallUpStage.ready
                                 ? widget.onPlay
