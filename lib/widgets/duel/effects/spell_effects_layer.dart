@@ -29,6 +29,7 @@ class SpellEffectsLayer extends StatefulWidget {
     required this.bottomKey,
     required this.child,
     this.scrubTime,
+    this.timeScale = 1,
   });
 
   /// The result being shown, or null between results. A result with a new
@@ -41,6 +42,9 @@ class SpellEffectsLayer extends StatefulWidget {
   /// For the effects preview: freeze the effect at this time (seconds)
   /// instead of playing it.
   final double? scrubTime;
+
+  /// Below 1 plays the effect in slow motion (the killcam).
+  final double timeScale;
 
   @override
   State<SpellEffectsLayer> createState() => _SpellEffectsLayerState();
@@ -120,7 +124,7 @@ class _SpellEffectsLayerState extends State<SpellEffectsLayer>
   void _tick(Duration elapsed) {
     final planned = _planned;
     if (planned == null) return;
-    _t = elapsed.inMicroseconds / 1e6;
+    _t = elapsed.inMicroseconds / 1e6 * widget.timeScale;
     _ctx = _measure() ?? _ctx;
 
     final impacts = planned.fx.impacts;

@@ -227,8 +227,13 @@ void main() {
       }
       expect(find.text('Je hebt verloren'), findsOneWidget);
 
-      // No tap needed: the result screen opens after the final effect.
-      await realTime(const Duration(seconds: 4));
+      // The final cast goes straight into the killcam (slow motion, once),
+      // which then opens the result screen. Skip it here.
+      await realTime(const Duration(milliseconds: 300));
+      expect(find.text('KILLCAM'), findsOneWidget);
+      await tester.tap(find.text('Overslaan ›'));
+      await realTime(const Duration(milliseconds: 800));
+      expect(find.text('KILLCAM'), findsNothing);
       expect(find.text('REVANCHE'), findsOneWidget);
 
       // Asking is not starting: wait for the opponent's yes.

@@ -24,6 +24,7 @@ import '../../widgets/duel/emotes/emote_burst.dart';
 import '../../widgets/duel/emotes/emote_picker.dart';
 import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/gesture_debug_overlay.dart';
+import '../../widgets/duel/killcam.dart';
 import '../../widgets/duel/spell_card_grid.dart';
 import '../../widgets/duel/video_feed.dart';
 import '../../widgets/generic/avatar_tile.dart';
@@ -64,6 +65,42 @@ class _DuelScreenState extends State<DuelScreen> {
   /// Opens the result screen once the final effect has played.
   Timer? _resultTimer;
   bool _openedResult = false;
+
+  /// Photos of both cameras at the final reveal, for the killcam.
+  KillcamFrames? _frames;
+  int? _capturedRound;
+  bool _showKillcam = false;
+
+  /// The game just ended on a spell: the final cast plays only once, in
+  /// slow motion, with the two cameras big (the killcam).
+  bool _finalInSlowMotion(GameState s) =>
+      s.phase == GamePhase.finished &&
+      s.error == null &&
+      s.lastResult != null &&
+      KillcamOverlay.hasReplay(s.lastResult!);
+
+  /// Takes the photos right at the final reveal, while the gestures are
+  /// still in view.
+  void _captureFinal(GameProvider game) {
+    final last = game.state.lastResult;
+    if (last == null || last.round == _capturedRound) return;
+    _capturedRound = last.round;
+    if (!KillcamOverlay.hasReplay(last)) return;
+    final shareVideo = context.read<ProfileProvider>().shareVideo;
+    unawaited(
+      KillcamFrames.capture(
+        round: last.round,
+        opponent: shareVideo ? game.remoteStream : null,
+        mine: game.localStream,
+      ).then((frames) {
+        // The killcam is already open: it swaps the live video for these
+        // frozen photos when they come in.
+        if (mounted && frames.round == _capturedRound) {
+          setState(() => _frames = frames);
+        }
+      }),
+    );
+  }
 
   void _openResult() {
     _resultTimer?.cancel();
@@ -172,7 +209,17 @@ class _DuelScreenState extends State<DuelScreen> {
     }
     // A normal game end: show the final effect, then the result screen by
     // itself. Not when the opponent left: there is no real result then.
-    if (s.phase == GamePhase.finished && s.error == null) {
+    if (_finalInSlowMotion(s)) {
+      // Straight into the killcam; it opens the result screen itself.
+      _captureFinal(game);
+      if (!_showKillcam) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_leaving && !_openedResult) {
+            setState(() => _showKillcam = true);
+          }
+        });
+      }
+    } else if (s.phase == GamePhase.finished && s.error == null) {
       _resultTimer ??= Timer(AppConstants.resultScreenDelay, _openResult);
     }
     final error = game.actionError;
@@ -227,7 +274,8 @@ class _DuelScreenState extends State<DuelScreen> {
           Scaffold(
             body: SafeArea(
               child: SpellEffectsLayer(
-                result: showingResult ? result : null,
+                // The final cast plays in the killcam instead (slow motion).
+                result: showingResult && !_finalInSlowMotion(s) ? result : null,
                 topKey: _topFeedKey,
                 bottomKey: _bottomFeedKey,
                 child: Padding(
@@ -371,6 +419,18 @@ class _DuelScreenState extends State<DuelScreen> {
                       : '${opponentFriend.wins} WINS',
                 ),
                 onDone: () => setState(() => _introDone = true),
+              ),
+            ),
+          if (_showKillcam && result != null)
+            Positioned.fill(
+              child: KillcamOverlay(
+                result: result,
+                frames: _frames,
+                opponentStream: shareVideo ? game.remoteStream : null,
+                myStream: game.localStream,
+                myName: profile.profile.name,
+                opponentName: opponentName,
+                onDone: _openResult,
               ),
             ),
         ],
