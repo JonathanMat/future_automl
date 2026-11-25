@@ -238,6 +238,10 @@ class WebRtcCall {
         await track.stop();
       }
       await stream.dispose();
+      // Left before the connection was made: no peer connection was
+      // disposed above, so Android would stay in call mode (other sound
+      // muted or on the earpiece).
+      if (pc == null && audio) await AudioSession.release();
     }
     if (removeSignaling) await signaling.remove();
     _remoteCtl.add(null);

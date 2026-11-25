@@ -76,6 +76,31 @@ class _LobbyScreenState extends State<LobbyScreen> {
     await game.leave();
   }
 
+  /// The challenged friend declined (or didn't answer): leave and go home.
+  Future<void> _goHome() async {
+    if (_leaving) return;
+    _leaving = true;
+    final game = context.read<GameProvider>();
+    final challenges = context.read<ChallengeProvider>();
+    AppRouter.goHome(context);
+    await challenges.cancelOutgoing();
+    await game.leave();
+  }
+
+  bool _retrying = false;
+
+  Future<void> _retry() async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final message = await context.read<ChallengeProvider>().retry();
+    if (!mounted) return;
+    setState(() => _retrying = false);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _goToDuel() {
     if (_navigated || !mounted) return;
     _navigated = true;
@@ -150,6 +175,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                         challenge: challenge,
                         expiresAt: challenges.outgoingExpiresAt!,
                         roomCode: s.roomCode,
+                        retrying: _retrying,
+                        onRetry: _retry,
+                        onHome: _goHome,
                       )
                     else if (s.roomCode != null)
                       RoomCodeCard(code: s.roomCode!)
@@ -176,7 +204,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               subtitle: opponent != null
                                   ? _friendSubtitle(profile, opponent.name)
                                   : challenge != null
-                                  ? 'Uitgenodigd'
+                                  ? (challenge.declined
+                                        ? 'Geweigerd'
+                                        : 'Uitgenodigd')
                                   : 'Deel de code',
                               online: opponent?.online ?? true,
                             ),

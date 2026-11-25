@@ -15,7 +15,8 @@ import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/name_field.dart';
 import '../../widgets/generic/screen_header.dart';
 import '../../widgets/lobby/video_share_card.dart';
-import '../../widgets/settings/account_card.dart';
+import '../../widgets/settings/account_card.dart'
+    show AccountCard, confirmSignOut;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -176,14 +177,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: profile.setSoundEffects,
             ),
             const SizedBox(height: 14),
-            ChunkyButton(
-              label: 'Account verwijderen',
-              icon: Icons.delete_forever_rounded,
-              display: false,
-              height: 52,
-              style: ChunkyButtonStyle.secondary,
-              loading: context.select<AccountProvider, bool>((a) => a.busy),
-              onPressed: _deleteAccount,
+            if (!context.select<AccountProvider, bool>((a) => a.isGuest))
+              ChunkyButton(
+                label: 'Uitloggen',
+                icon: Icons.logout_rounded,
+                display: false,
+                height: 52,
+                style: ChunkyButtonStyle.secondary,
+                loading: context.select<AccountProvider, bool>((a) => a.busy),
+                onPressed: () => confirmSignOut(context),
+              ),
+            const SizedBox(height: 4),
+            // Small and red on purpose: it can't be undone.
+            Center(
+              child: TextButton.icon(
+                onPressed: context.select<AccountProvider, bool>((a) => a.busy)
+                    ? null
+                    : _deleteAccount,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.redSoft,
+                  textStyle: AppTextStyles.body(13, weight: FontWeight.w700),
+                ),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: const Text('Account verwijderen'),
+              ),
             ),
             const SizedBox(height: 12),
             TextButton.icon(

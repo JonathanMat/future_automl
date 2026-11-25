@@ -15,6 +15,8 @@ import 'package:spell_duel/models/spell_prediction.dart';
 import 'package:spell_duel/screens/badges/badges_screen.dart';
 import 'package:spell_duel/widgets/badges/badge_unlock_overlay.dart';
 import 'package:spell_duel/widgets/duel/duel_intro.dart';
+import 'package:spell_duel/providers/challenge_provider.dart';
+import 'package:spell_duel/widgets/lobby/challenge_waiting_card.dart';
 import 'package:provider/provider.dart';
 import 'package:spell_duel/widgets/duel/cast_meter.dart';
 import 'package:spell_duel/widgets/result/duel_stats_card.dart';
@@ -226,6 +228,42 @@ void main() {
       expect(size.height, lessThanOrEqualTo(40), reason: name);
       expect(size.width, lessThanOrEqualTo(240), reason: name);
     }
+  });
+
+  testWidgets('a declined challenge offers retry and home', (tester) async {
+    phoneSize(tester);
+    var retried = 0;
+    var home = 0;
+    final now = DateTime.now();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              ChallengeWaitingCard(
+                challenge: OutgoingChallenge(
+                  uid: 'x',
+                  name: 'Lotte',
+                  sentAt: now,
+                  declined: true,
+                ),
+                expiresAt: now.add(const Duration(minutes: 10)),
+                roomCode: 'ABCD',
+                onRetry: () => retried++,
+                onHome: () => home++,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Lotte heeft geweigerd'), findsOneWidget);
+    await tester.tap(find.text('Opnieuw'));
+    await tester.tap(find.text('Naar home'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect((retried, home), (1, 1));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('the badges screen shows progress and details', (tester) async {

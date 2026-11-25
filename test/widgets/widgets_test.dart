@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:spell_duel/models/duel_summary.dart';
+import 'package:spell_duel/widgets/generic/avatar_tile.dart';
 import 'package:spell_duel/main.dart';
 import 'package:spell_duel/models/game_rules.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
@@ -441,6 +443,53 @@ void main() {
       expect(find.text('JIJ'), findsOneWidget);
       expect(find.text('RECORD'), findsOneWidget);
       expect(find.text('Verwijder als vriend'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Nog geen duels gespeeld.'),
+        200,
+        // The profile page's list (home's is still below it).
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('GESCHIEDENIS'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('your profile lists the duels you played', (tester) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      for (var i = 0; i < 7; i++) {
+        await profile.recordGame(
+          DuelSummary(
+            opponentName: 'Tegenstander $i',
+            won: i.isEven,
+            rounds: const [],
+            xpGained: 10,
+          ),
+          at: DateTime(2026, 11, 1, i),
+        );
+      }
+      await pumpApp(tester, profile);
+
+      // The avatar at the top left of home opens your profile.
+      await tester.tap(find.byType(AvatarTile).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Jouw profiel'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Toon alle 7 duels'),
+        200,
+        // The profile page's list (home's is still below it).
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('vs Tegenstander 6'), findsOneWidget);
+      expect(find.text('vs Tegenstander 0'), findsNothing);
+
+      await tester.ensureVisible(find.text('Toon alle 7 duels'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Toon alle 7 duels'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Toon minder'));
+      await tester.pumpAndSettle();
+      expect(find.text('vs Tegenstander 0'), findsOneWidget);
+      expect(find.text('Toon minder'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

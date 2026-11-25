@@ -54,6 +54,7 @@ void main() {
       game: game,
       push: push,
       refreshEvery: const Duration(milliseconds: 20),
+      declineGrace: const Duration(milliseconds: 30),
       clock: () => now,
     );
     await pumpEventQueue();
@@ -187,5 +188,44 @@ void main() {
     final count = backend.refreshedInvites['x'];
     await Future<void>.delayed(const Duration(milliseconds: 60));
     expect(backend.refreshedInvites['x'], count);
+  });
+
+  test('a declined challenge is shown to the sender, who can retry', () async {
+    await setup();
+    // A room no one joins (the friend declines instead).
+    await challenges.send(const Friend(uid: 'x', name: 'X'), 'ABCD');
+    await pumpEventQueue();
+    expect(challenges.outgoing?.declined, isFalse);
+
+    backend.declineSentInvite('x');
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(challenges.outgoing?.declined, isTrue);
+    expect(challenges.outgoing?.name, 'X');
+  });
+
+  test('retry sends the challenge again for the same room', () async {
+    await setup();
+    final code = await game.createRoom('Maarten');
+    // The mock bot would join; keep it away by challenging before it does
+    // and declining right away.
+    await challenges.send(const Friend(uid: 'x', name: 'X'), code!);
+    backend.declineSentInvite('x');
+    await challenges.retry();
+    expect(backend.sentInvites, {'x': code});
+    expect(challenges.outgoing?.declined, isFalse);
+    expect(push.notified, ['x', 'x']);
+    await game.leave();
+  });
+
+  test('accepting (the friend joins) is not seen as declined', () async {
+    await setup();
+    final code = await game.createRoom('Maarten');
+    await challenges.send(const Friend(uid: 'mock-bot', name: 'Bot'), code!);
+    // The friend's app removes the invite once they are in the room.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    backend.declineSentInvite('mock-bot');
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(challenges.outgoing, isNull, reason: 'cleared when they joined');
+    await game.leave();
   });
 }

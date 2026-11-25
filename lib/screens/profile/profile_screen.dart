@@ -15,7 +15,6 @@ import '../../theme/app_theme.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/crossed_swords_icon.dart';
 import '../../widgets/generic/screen_header.dart';
-import '../../widgets/home/recent_duel_card.dart';
 import '../../widgets/profile/profile_sections.dart';
 
 /// Who to show on the [ProfileScreen]. Name, tag and record come from
@@ -206,10 +205,19 @@ class _ProfileBody extends StatelessWidget {
                     ? () => Navigator.of(context).pushNamed(AppRoutes.badges)
                     : null,
               ),
-              if (profile.lastDuel != null) ...[
-                _section('LAATSTE DUEL'),
-                RecentDuelCard(duel: profile.lastDuel!),
-              ],
+              _section('GESCHIEDENIS'),
+              DuelHistoryCard(
+                history: profile.history,
+                onOpen: (d) {
+                  // Already on their page (e.g. their duel against you).
+                  if (d.opponentUid == uid) return;
+                  ProfileScreen.open(
+                    context,
+                    uid: d.opponentUid,
+                    name: d.opponentName,
+                  );
+                },
+              ),
             ],
           ],
         ),

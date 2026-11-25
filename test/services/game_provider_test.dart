@@ -65,6 +65,7 @@ void main() {
     expect(p.wins + p.losses, 1);
     expect(p.xp, s.won ? 120 : 40);
     expect(p.lastDuel!.opponentName, 'Bot');
+    expect(p.history.single.opponentName, 'Bot');
     expect(profile.friends.single.name, 'Bot');
 
     // Stored on the phone too.

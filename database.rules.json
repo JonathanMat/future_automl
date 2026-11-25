@@ -131,6 +131,18 @@
           "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "streak": { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "lastDuel": { ".validate": "newData.hasChildren(['opponentName', 'won', 'playedAt'])" },
+          "history": {
+            "$i": {
+              ".validate": "$i.matches(/^[0-9]{1,2}$/) && newData.hasChildren(['opponentName', 'won', 'playedAt'])",
+              "opponentName": { ".validate": "newData.isString() && newData.val().length <= 24" },
+              "opponentUid": { ".validate": "newData.isString() && newData.val().length <= 128" },
+              "won": { ".validate": "newData.isBoolean()" },
+              "roundsWon": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "roundsLost": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "playedAt": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "$other": { ".validate": false }
+            }
+          },
           "stats": {
             "$key": { ".validate": "$key.matches(/^[a-zA-Z_]{1,24}$/) && newData.isNumber() && newData.val() >= 0" }
           },
