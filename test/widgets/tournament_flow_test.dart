@@ -85,7 +85,7 @@ void main() {
       );
       await tester.tap(find.text('TOERNOOI'));
       await pumpFor(tester, const Duration(milliseconds: 600));
-      expect(find.text('Speel met de hele klas'), findsOneWidget);
+      expect(find.text('Speel met je vrienden'), findsOneWidget);
 
       await tester.tap(find.text('TOERNOOI MAKEN'));
       await pumpFor(tester, const Duration(milliseconds: 600));

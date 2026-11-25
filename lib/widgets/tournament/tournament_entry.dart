@@ -66,7 +66,7 @@ class _TournamentEntryState extends State<TournamentEntry>
         ),
         const SizedBox(height: 18),
         Text(
-          'Speel met de hele klas',
+          'Speel met je vrienden',
           textAlign: TextAlign.center,
           style: AppTextStyles.display(28),
         ),
@@ -152,12 +152,7 @@ class _TournamentEntryState extends State<TournamentEntry>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Step(
-                n: 1,
-                text:
-                    'De leerkracht (of iemand) maakt het toernooi en zet de '
-                    'code op het bord.',
-              ),
+              _Step(n: 1, text: 'Iemand maakt het toernooi en deelt de code.'),
               _Step(n: 2, text: 'Iedereen doet mee met die code.'),
               _Step(
                 n: 3,
