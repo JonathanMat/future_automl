@@ -28,12 +28,32 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  late final _name = TextEditingController(
-    text: context.read<ProfileProvider>().profile.name,
-  );
+  late final ProfileProvider _profile;
+  late final TextEditingController _name;
+
+  /// The saved name the field last showed.
+  late String _shownName;
+
+  @override
+  void initState() {
+    super.initState();
+    _profile = context.read<ProfileProvider>()..addListener(_onProfile);
+    _shownName = _profile.profile.name;
+    _name = TextEditingController(text: _shownName);
+  }
+
+  /// The name changed elsewhere, e.g. logging in with Google loaded that
+  /// account's name: show it, unless you are typing a new one.
+  void _onProfile() {
+    final name = _profile.profile.name;
+    if (name == _shownName) return;
+    if (_name.text == _shownName) _name.text = name;
+    _shownName = name;
+  }
 
   @override
   void dispose() {
+    _profile.removeListener(_onProfile);
     _name.dispose();
     super.dispose();
   }

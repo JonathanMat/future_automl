@@ -19,6 +19,39 @@ class FriendRecord {
   final DateTime lastPlayed;
 
   int get games => wins + losses;
+
+  /// Same opponent: the account id when both have one, else the name.
+  bool sameAs(FriendRecord other) => uid != null && other.uid != null
+      ? uid == other.uid
+      : name.trim().toLowerCase() == other.name.trim().toLowerCase();
+
+  /// [a] and [b] together, most recently played first. For an opponent in
+  /// both, the copy played most recently wins (the record keeps counting
+  /// from there), or the one with the most games when that is the same.
+  static List<FriendRecord> merge(List<FriendRecord> a, List<FriendRecord> b) {
+    final out = <FriendRecord>[...a];
+    for (final r in b) {
+      final i = out.indexWhere(r.sameAs);
+      if (i < 0) {
+        out.add(r);
+        continue;
+      }
+      final mine = out[i];
+      final newer =
+          r.lastPlayed.isAfter(mine.lastPlayed) ||
+          (r.lastPlayed == mine.lastPlayed && r.games > mine.games);
+      if (!newer) continue;
+      out[i] = FriendRecord(
+        uid: r.uid ?? mine.uid,
+        name: r.name,
+        wins: r.wins,
+        losses: r.losses,
+        lastPlayed: r.lastPlayed,
+      );
+    }
+    return out..sort((x, y) => y.lastPlayed.compareTo(x.lastPlayed));
+  }
+
   int get winRate => games == 0 ? 0 : (wins * 100 / games).round();
 
   FriendRecord recordGame({

@@ -159,6 +159,16 @@ class MockFriendsBackend implements FriendsBackend {
   Future<void> saveProgress(Map<String, Object?> progress) async =>
       savedProgress = progress;
 
+  /// What [saveRecent] stored last (for tests).
+  List<Map<String, Object?>> savedRecent = [];
+
+  @override
+  Future<List<Map<String, Object?>>> loadRecent() async => List.of(savedRecent);
+
+  @override
+  Future<void> saveRecent(List<Map<String, Object?>> recent) async =>
+      savedRecent = List.of(recent);
+
   /// Set by [deleteMyData] (for tests).
   bool deleted = false;
 
@@ -167,6 +177,7 @@ class MockFriendsBackend implements FriendsBackend {
     deleted = true;
     _friends.clear();
     savedProgress = null;
+    savedRecent = [];
     board = null;
     _emit();
   }

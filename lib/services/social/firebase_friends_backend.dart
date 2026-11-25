@@ -316,6 +316,38 @@ class FirebaseFriendsBackend implements FriendsBackend {
       _db.ref('users/$_me/progress').set(progress);
 
   @override
+  Future<List<Map<String, Object?>>> loadRecent() async {
+    final v = (await _db.ref('users/$_me/recent').get()).value;
+    // Stored as a list; the database may hand it back as a list or as a
+    // map with "0", "1", … keys (when one is missing).
+    final items = switch (v) {
+      final List l => l,
+      final Map m => [
+        for (final k
+            in m.keys.toList()..sort(
+              (a, b) => (int.tryParse('$a') ?? 0) - (int.tryParse('$b') ?? 0),
+            ))
+          m[k],
+      ],
+      _ => const [],
+    };
+    return [
+      for (final item in items)
+        if (_asMap(item) case final m?)
+          {
+            for (final e in m.entries)
+              '${e.key}': e.value is num ? (e.value as num).toInt() : e.value,
+          },
+    ];
+  }
+
+  @override
+  Future<void> saveRecent(List<Map<String, Object?>> recent) {
+    final ref = _db.ref('users/$_me/recent');
+    return recent.isEmpty ? ref.remove() : ref.set(recent);
+  }
+
+  @override
   Future<void> resetStats() async {
     final board = _db.ref('leaderboard/$_me');
     if (!(await board.child('wins').get()).exists) return;

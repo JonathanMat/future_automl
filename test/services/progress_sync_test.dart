@@ -95,4 +95,71 @@ void main() {
     expect(profile.profile.wins, 0);
     expect(backend.savedProgress?['wins'], 0);
   });
+
+  group('recent opponents', () {
+    test('a new install gets them back from the server', () async {
+      final profile = await _profile();
+      final backend = MockFriendsBackend()
+        ..savedRecent = [
+          {
+            'uid': 'u-lotte',
+            'name': 'Lotte',
+            'wins': 2,
+            'losses': 1,
+            'lastPlayed': 1000,
+          },
+        ];
+      FriendsProvider(backend).attach(profile);
+      await pumpEventQueue();
+
+      expect(profile.friends.single.name, 'Lotte');
+      expect(profile.friends.single.wins, 2);
+      expect(profile.friends.single.uid, 'u-lotte');
+    });
+
+    test('are uploaded and merged with the server copy', () async {
+      final profile = await _profile();
+      await profile.recordGame(_win());
+      final backend = MockFriendsBackend()
+        ..savedRecent = [
+          {'name': 'Lotte', 'wins': 0, 'losses': 1, 'lastPlayed': 1000},
+        ];
+      FriendsProvider(backend).attach(profile);
+      await pumpEventQueue();
+
+      expect(profile.friends.map((f) => f.name), ['Bot', 'Lotte']);
+      expect(backend.savedRecent.map((m) => m['name']), ['Bot', 'Lotte']);
+
+      // Every game after that is saved too.
+      await profile.recordGame(_win());
+      await pumpEventQueue();
+      expect(backend.savedRecent.first['wins'], 2);
+    });
+
+    test('resetting stats clears them on the server', () async {
+      final profile = await _profile();
+      await profile.recordGame(_win());
+      final backend = MockFriendsBackend();
+      FriendsProvider(backend).attach(profile);
+      await pumpEventQueue();
+      expect(backend.savedRecent, isNotEmpty);
+
+      await profile.resetStats();
+      await pumpEventQueue();
+      expect(backend.savedRecent, isEmpty);
+    });
+
+    test('after an account switch the server list replaces them', () async {
+      final profile = await _profile();
+      await profile.recordGame(_win());
+      final backend = MockFriendsBackend();
+      final friends = FriendsProvider(backend)..attach(profile);
+      await pumpEventQueue();
+
+      backend.savedRecent = [];
+      await friends.restart();
+      await pumpEventQueue();
+      expect(profile.friends, isEmpty);
+    });
+  });
 }

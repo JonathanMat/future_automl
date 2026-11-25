@@ -146,6 +146,13 @@ abstract class FriendsBackend {
 
   Future<void> saveProgress(Map<String, Object?> progress);
 
+  /// Your recent opponents (`users/{uid}/recent`), as saved by
+  /// [saveRecent]. Empty if none yet.
+  Future<List<Map<String, Object?>>> loadRecent();
+
+  /// Replaces your recent opponents on the server (empty removes them).
+  Future<void> saveRecent(List<Map<String, Object?>> recent);
+
   /// Sets your scorebord entry back to 0 wins and 0 losses.
   Future<void> resetStats();
 

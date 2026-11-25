@@ -128,6 +128,17 @@
           },
           "$other": { ".validate": false }
         },
+        "recent": {
+          "$i": {
+            ".validate": "$i.matches(/^[0-9]{1,2}$/) && newData.hasChildren(['name', 'lastPlayed'])",
+            "uid": { ".validate": "newData.isString() && newData.val().length <= 128" },
+            "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "wins": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "losses": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "lastPlayed": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+            "$other": { ".validate": false }
+          }
+        },
         "friendCode": {
           ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val()) && newData.parent().parent().parent().child('friendCodes/' + newData.val()).val() === $uid"
         },

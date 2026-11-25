@@ -25,7 +25,8 @@ class ProfileProvider extends ChangeNotifier {
 
   PlayerProfile get profile => _profile;
 
-  /// Recent opponents, most recently played first. Stored on this phone.
+  /// Recent opponents, most recently played first. Stored on this phone
+  /// and, once signed in, on the server (see `FriendsProvider`).
   List<FriendRecord> get friends => _friends;
   bool get shareVideo => _shareVideo;
 
@@ -157,24 +158,19 @@ class ProfileProvider extends ChangeNotifier {
 
     // Match on the account id when we have one, otherwise on the name.
     final uid = summary.opponentUid;
-    final key = summary.opponentName.trim().toLowerCase();
-    bool same(FriendRecord f) => uid != null && f.uid != null
-        ? f.uid == uid
-        : f.name.trim().toLowerCase() == key;
+    final probe = FriendRecord(
+      uid: uid,
+      name: summary.opponentName,
+      lastPlayed: now,
+    );
+    bool same(FriendRecord f) => f.sameAs(probe);
     final existing = _friends.where(same).firstOrNull;
-    final updated =
-        (existing ??
-                FriendRecord(
-                  uid: uid,
-                  name: summary.opponentName,
-                  lastPlayed: now,
-                ))
-            .recordGame(
-              won: won,
-              at: now,
-              uid: uid,
-              name: summary.opponentName,
-            );
+    final updated = (existing ?? probe).recordGame(
+      won: won,
+      at: now,
+      uid: uid,
+      name: summary.opponentName,
+    );
     _friends = [updated, ..._friends.where((f) => !same(f))];
 
     // Badges reached with this duel (or earlier, for older profiles).
@@ -200,6 +196,14 @@ class ProfileProvider extends ChangeNotifier {
     );
     notifyListeners();
     await _storage.saveProfile(_profile);
+  }
+
+  /// Replaces the recent opponents, e.g. with this phone's merged with
+  /// the server's.
+  Future<void> replaceRecent(List<FriendRecord> recent) async {
+    _friends = List.unmodifiable(recent);
+    notifyListeners();
+    await _storage.saveFriends(_friends);
   }
 
   /// Clears XP, record and recent opponents. Keeps the name and the

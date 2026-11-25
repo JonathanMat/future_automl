@@ -432,6 +432,23 @@ void main() {
       expect(backend.voiceChat, isFalse);
     });
 
+    testWidgets('settings shows a name loaded from another account', (
+      tester,
+    ) async {
+      final profile = await profileWith({});
+      await profile.setName('Jonathan');
+      await pumpApp(tester, profile);
+
+      await tester.tap(find.byTooltip('Instellingen'));
+      await _pumpFor(tester, const Duration(milliseconds: 600));
+      expect(find.widgetWithText(TextFormField, 'Jonathan'), findsOneWidget);
+
+      // Like logging in with Google into an account with its own name.
+      await profile.setName('Lotte');
+      await tester.pump();
+      expect(find.widgetWithText(TextFormField, 'Lotte'), findsOneWidget);
+    });
+
     testWidgets('a bad room code shows a validation error', (tester) async {
       final profile = await profileWith({});
       await profile.setName('Jonathan');

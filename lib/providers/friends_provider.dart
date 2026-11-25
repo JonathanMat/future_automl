@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/friend_record.dart';
 import '../models/player_profile.dart';
 import '../services/social/friends_backend.dart';
 import 'profile_provider.dart';
@@ -33,6 +34,12 @@ class FriendsProvider extends ChangeNotifier {
 
   /// Progress as last saved to / loaded from the server (JSON string).
   String? _syncedProgress;
+
+  /// Recent opponents as last saved to / loaded from the server (JSON).
+  String? _syncedRecent;
+
+  /// At most this many recent opponents are kept on the server.
+  static const maxRecentOnServer = 50;
 
   /// Set by [restart]: the next sign-in takes the server's progress.
   bool _adoptRemote = false;
@@ -98,7 +105,51 @@ class FriendsProvider extends ChangeNotifier {
         });
       }
       _saveProgressIfChanged();
+      _saveRecentIfChanged();
     }
+  }
+
+  static List<Map<String, Object?>> _recentJson(List<FriendRecord> recent) => [
+    for (final r in recent.take(maxRecentOnServer))
+      {
+        ...r.toJson(),
+        // The rules allow 24 characters, like a player name.
+        'name': r.name.length > 24 ? r.name.substring(0, 24) : r.name,
+      },
+  ];
+
+  void _saveRecentIfChanged() {
+    final profile = _profile;
+    if (profile == null || _syncedRecent == null) return;
+    final recent = _recentJson(profile.friends);
+    final key = '$recent';
+    if (key == _syncedRecent) return;
+    _syncedRecent = key;
+    backend.saveRecent(recent).catchError((Object e) {
+      debugPrint('saveRecent: $e');
+    });
+  }
+
+  /// Makes this phone and the server agree on the recent opponents.
+  ///
+  /// After an account switch the server wins, like [_syncProgress].
+  /// Otherwise both lists are merged, so a new phone or a reinstall gets
+  /// them back and nothing played offline is lost.
+  Future<void> _syncRecent({required bool adopt}) async {
+    final profile = _profile;
+    if (profile == null) return;
+    final remote = [
+      for (final m in await backend.loadRecent()) FriendRecord.fromJson(m),
+    ];
+    final merged = adopt
+        ? FriendRecord.merge(remote, const [])
+        : FriendRecord.merge(profile.friends, remote);
+    if ('${_recentJson(merged)}' != '${_recentJson(profile.friends)}') {
+      await profile.replaceRecent(merged);
+    }
+    final now = _recentJson(merged);
+    if ('$now' != '${_recentJson(remote)}') await backend.saveRecent(now);
+    _syncedRecent = '$now';
   }
 
   void _saveProgressIfChanged() {
@@ -162,10 +213,15 @@ class FriendsProvider extends ChangeNotifier {
       }
       _listen();
       try {
-        await _syncProgress(adopt: _adoptRemote);
+        await _syncProgress(adopt: adopt);
         _adoptRemote = false;
       } catch (e) {
         debugPrint('syncProgress: $e');
+      }
+      try {
+        await _syncRecent(adopt: adopt);
+      } catch (e) {
+        debugPrint('syncRecent: $e');
       }
     } catch (e) {
       debugPrint('friends signIn: $e');
@@ -208,6 +264,7 @@ class FriendsProvider extends ChangeNotifier {
     _sent.clear();
     _error = null;
     _syncedProgress = null;
+    _syncedRecent = null;
     _adoptRemote = true;
     _notify();
     await connect();
