@@ -15,12 +15,24 @@ class OutgoingChallenge {
     required this.name,
     this.tag,
     required this.sentAt,
+    this.declined = false,
   });
 
   final String uid;
   final String name;
   final String? tag;
   final DateTime sentAt;
+
+  /// The friend tapped "Weiger": you can challenge them again or go home.
+  final bool declined;
+
+  OutgoingChallenge asDeclined() => OutgoingChallenge(
+    uid: uid,
+    name: name,
+    tag: tag,
+    sentAt: sentAt,
+    declined: true,
+  );
 }
 
 /// Challenges between friends: invites you received (shown as a banner on
@@ -37,6 +49,7 @@ class ChallengeProvider extends ChangeNotifier {
     required this.game,
     this.push = const NoPushService(),
     this.refreshEvery = const Duration(minutes: 1),
+    this.declineGrace = const Duration(milliseconds: 1500),
     DateTime Function()? clock,
   }) : _now = clock ?? DateTime.now {
     friends.addListener(_onFriends);
@@ -59,6 +72,11 @@ class ChallengeProvider extends ChangeNotifier {
 
   /// How often a waiting invite is marked as still open.
   final Duration refreshEvery;
+
+  /// After the invite disappears, how long the friend may take to show up
+  /// in the room before it counts as declined (accepting removes the
+  /// invite too, right after joining).
+  final Duration declineGrace;
   final DateTime Function() _now;
 
   String? _uid;
@@ -71,6 +89,10 @@ class ChallengeProvider extends ChangeNotifier {
   final Set<String> _hidden = {};
   OutgoingChallenge? _outgoing;
   Timer? _refresh;
+
+  /// Watches whether the friend still has your invite (see [_watchOutgoing]).
+  StreamSubscription<bool>? _watch;
+  Timer? _declineCheck;
 
   /// The room of the outgoing challenge has been seen. Until then an idle
   /// state just means Firebase hasn't reported the new room yet.
@@ -163,6 +185,48 @@ class ChallengeProvider extends ChangeNotifier {
     _outgoingRoomSeen = false;
     _refresh?.cancel();
     _refresh = null;
+    _stopWatch();
+  }
+
+  void _stopWatch() {
+    _watch?.cancel();
+    _watch = null;
+    _declineCheck?.cancel();
+    _declineCheck = null;
+  }
+
+  /// Notices when the friend declines: their invite disappears while they
+  /// are not in the room.
+  void _watchOutgoing(String uid) {
+    _stopWatch();
+    var seen = false;
+    _watch = backend.inviteOpen(uid).listen((open) {
+      if (open) {
+        seen = true;
+        _declineCheck?.cancel();
+        return;
+      }
+      if (!seen) return;
+      _declineCheck?.cancel();
+      _declineCheck = Timer(declineGrace, () {
+        final out = _outgoing;
+        if (out == null || out.uid != uid || out.declined) return;
+        if (game.state.opponent != null) return; // they accepted
+        _outgoing = out.asDeclined();
+        _refresh?.cancel();
+        _refresh = null;
+        _notify();
+      });
+    }, onError: (Object e) => debugPrint('inviteOpen: $e'));
+  }
+
+  /// Challenges the same friend again for the room you are in, e.g. after
+  /// they declined or the invite ran out. Returns a message.
+  Future<String> retry() async {
+    final out = _outgoing;
+    final code = game.state.roomCode;
+    if (out == null || code == null) return 'Opnieuw uitdagen lukt niet.';
+    return send(Friend(uid: out.uid, name: out.name, tag: out.tag), code);
   }
 
   /// Takes the invite back once the friend is in, or the room is gone.
@@ -197,6 +261,7 @@ class ChallengeProvider extends ChangeNotifier {
       );
       _outgoingRoomSeen = game.state.phase != GamePhase.idle;
       _startRefresh();
+      _watchOutgoing(friend.uid);
       _notify();
       return 'Uitdaging verstuurd naar ${friend.name}.';
     } catch (e) {
@@ -218,7 +283,15 @@ class ChallengeProvider extends ChangeNotifier {
     }
   }
 
-  /// Hides and removes an invite (after joining, or when declined).
+  /// Hides an invite here only, e.g. while joining its room. The sender
+  /// would see a removed invite as declined.
+  void hide(ChallengeInvite invite) {
+    _hidden.add(_key(invite));
+    _notify();
+  }
+
+  /// Hides and removes an invite (after joining, or when declined). The
+  /// sender then sees it was declined, unless you joined their room.
   Future<void> dismiss(ChallengeInvite invite) async {
     _hidden.add(_key(invite));
     _notify();
@@ -244,6 +317,7 @@ class ChallengeProvider extends ChangeNotifier {
     _disposed = true;
     _expiry.cancel();
     _refresh?.cancel();
+    _stopWatch();
     _unsubscribe();
     friends.removeListener(_onFriends);
     game.removeListener(_onGame);

@@ -1,4 +1,4 @@
-"""Synthesizes the spell, emote, result and badge sound effects in assets/sounds/.
+"""Synthesizes the spell, emote, result, badge and duel intro sound effects in assets/sounds/.
 
 Every sound is generated from noise and oscillators, so there are no
 licensing questions. Tweak a function and re-run:
@@ -935,6 +935,64 @@ def badge_unlock():
     return out
 
 
+# ---------------------------------------------------------------------------
+# Duel intro
+# ---------------------------------------------------------------------------
+
+# The "VS" intro animation (lib/widgets/duel/duel_intro.dart): the panels
+# slam together, then "VS" lands, then everything slides away. Keep in sync.
+INTRO_SLAM = 0.36
+INTRO_VS = 0.58
+INTRO_EXIT = 2.2
+
+
+def duel_intro():
+    """The VS screen: two whooshes rush in from both sides and slam into a
+    heavy boom with a metal clash and lightning crackling along the seam,
+    then "VS" lands on a punchy brass stab. A last whoosh as it all slides
+    away (~2.7 s)."""
+    dur = 2.75
+    n = int(dur * SR)
+    out = np.zeros(n)
+
+    # Rush in: two rising whooshes, one a bit higher, building to the slam.
+    rush = INTRO_SLAM - 0.02
+    rt = t_axis(rush)
+    for f_from, f_to, a in [(300, 2600, 0.5), (500, 4200, 0.35)]:
+        w = sweep_bp(noise(rush), f_from, f_to, width=0.8) * (rt / rush) ** 2
+        place(out, a * norm(w), 0.02)
+
+    # Slam: a deep boom, a clash of metal and a crack.
+    tl = t_axis(1.2)
+    bf = 40 + 120 * np.exp(-tl / 0.04)
+    boom = np.sin(2 * np.pi * np.cumsum(bf) / SR) * np.exp(-tl / 0.3)
+    place(out, 0.9 * boom, INTRO_SLAM)
+    place(out, 0.35 * norm(metal_clang(0.9, 230, tau=0.25)), INTRO_SLAM)
+    crack = hp(noise(0.25), 1500) * exp_decay(int(0.25 * SR), 0.02)
+    place(out, 0.5 * norm(crack), INTRO_SLAM)
+    # Lightning crackling along the seam, fading out.
+    arc_len = 0.9
+    arc = electric_arc(arc_len, rate=95, flicker=0.25)
+    arc *= np.exp(-t_axis(arc_len) / 0.35)
+    place(out, 0.22 * norm(arc), INTRO_SLAM + 0.02)
+
+    # "VS" lands: a short hit and a bright brass stab with a shimmer.
+    hit = bp(noise(0.2), 120, 900) * exp_decay(int(0.2 * SR), 0.03)
+    place(out, 0.5 * norm(hit), INTRO_VS)
+    d4, a4, d5 = 293.66, 440.0, 587.33
+    for f, a in [(d5, 1), (a4, 0.75), (d4, 0.6), (d4 / 2, 0.45)]:
+        place(out, 0.4 * a * brass_note(0.55, f, bright=3600), INTRO_VS)
+    shimmer = hp(noise(0.9), 6500) * exp_decay(int(0.9 * SR), 0.3)
+    place(out, 0.12 * norm(shimmer), INTRO_VS)
+
+    # Slide away: a falling whoosh.
+    away = 0.45
+    at = t_axis(away)
+    w = sweep_bp(noise(away), 3000, 400, width=0.8) * np.sin(np.pi * at / away)
+    place(out, 0.35 * norm(w), INTRO_EXIT)
+    return room(out, decay=0.6, wet=0.2, tail=0.0)
+
+
 SOUNDS = {
     "fire_cast": fire_cast,
     "fire_explode": fire_explode,
@@ -958,8 +1016,13 @@ SOUNDS = {
     "result_win": result_win,
     "result_lose": result_lose,
     "badge_unlock": badge_unlock,
+    "duel_intro": duel_intro,
 }
 
 if __name__ == "__main__":
-    for name, fn in SOUNDS.items():
-        save(name, fn())
+    import sys
+
+    # python tool/gen_sfx.py duel_intro  -> only that sound.
+    wanted = sys.argv[1:] or list(SOUNDS)
+    for name in wanted:
+        save(name, SOUNDS[name]())

@@ -1,10 +1,12 @@
 import '../utils/constants.dart';
 import 'player_stats.dart';
 
-/// The last duel, shown on the home screen.
+/// One finished duel: the last one is shown on the home screen, the
+/// latest [PlayerProfile.maxHistory] on the profile page.
 class LastDuel {
   const LastDuel({
     required this.opponentName,
+    this.opponentUid,
     required this.won,
     required this.roundsWon,
     required this.roundsLost,
@@ -12,6 +14,10 @@ class LastDuel {
   });
 
   final String opponentName;
+
+  /// The opponent's account id, to open their profile. Null for duels
+  /// saved before ids were stored.
+  final String? opponentUid;
   final bool won;
   final int roundsWon;
   final int roundsLost;
@@ -19,6 +25,7 @@ class LastDuel {
 
   Map<String, Object?> toJson() => {
     'opponentName': opponentName,
+    'opponentUid': ?opponentUid,
     'won': won,
     'roundsWon': roundsWon,
     'roundsLost': roundsLost,
@@ -29,6 +36,7 @@ class LastDuel {
     if (json is! Map) return null;
     return LastDuel(
       opponentName: json['opponentName'] as String? ?? '?',
+      opponentUid: json['opponentUid'] as String?,
       won: json['won'] as bool? ?? false,
       roundsWon: json['roundsWon'] as int? ?? 0,
       roundsLost: json['roundsLost'] as int? ?? 0,
@@ -49,9 +57,13 @@ class PlayerProfile {
     this.losses = 0,
     this.streak = 0,
     this.lastDuel,
+    this.history = const [],
     this.stats = const PlayerStats(),
     this.badges = const {},
   });
+
+  /// At most this many duels are kept in [history].
+  static const maxHistory = 20;
 
   final String name;
 
@@ -63,6 +75,9 @@ class PlayerProfile {
   /// Wins in a row (0 after a loss).
   final int streak;
   final LastDuel? lastDuel;
+
+  /// The latest duels, newest first (at most [maxHistory]).
+  final List<LastDuel> history;
 
   /// Lifetime counters for the badges.
   final PlayerStats stats;
@@ -90,6 +105,7 @@ class PlayerProfile {
     int? losses,
     int? streak,
     LastDuel? lastDuel,
+    List<LastDuel>? history,
     PlayerStats? stats,
     Map<String, int>? badges,
   }) => PlayerProfile(
@@ -99,6 +115,7 @@ class PlayerProfile {
     losses: losses ?? this.losses,
     streak: streak ?? this.streak,
     lastDuel: lastDuel ?? this.lastDuel,
+    history: history ?? this.history,
     stats: stats ?? this.stats,
     badges: badges ?? this.badges,
   );
@@ -110,6 +127,7 @@ class PlayerProfile {
     'losses': losses,
     'streak': streak,
     'lastDuel': lastDuel?.toJson(),
+    'history': [for (final d in history) d.toJson()],
     'stats': stats.toJson(),
     'badges': badges,
   };
@@ -121,16 +139,41 @@ class PlayerProfile {
   PlayerProfile withProgress(Map<String, Object?> progress) =>
       PlayerProfile.fromJson({...progress, 'name': name});
 
-  factory PlayerProfile.fromJson(Map<String, Object?> json) => PlayerProfile(
-    name: json['name'] as String? ?? '',
-    xp: json['xp'] as int? ?? 0,
-    wins: json['wins'] as int? ?? 0,
-    losses: json['losses'] as int? ?? 0,
-    streak: json['streak'] as int? ?? 0,
-    lastDuel: LastDuel.fromJson(json['lastDuel']),
-    stats: PlayerStats.fromJson(json['stats']),
-    badges: _badgesFromJson(json['badges']),
-  );
+  factory PlayerProfile.fromJson(Map<String, Object?> json) {
+    final last = LastDuel.fromJson(json['lastDuel']);
+    final history = _historyFromJson(json['history']);
+    return PlayerProfile(
+      name: json['name'] as String? ?? '',
+      xp: json['xp'] as int? ?? 0,
+      wins: json['wins'] as int? ?? 0,
+      losses: json['losses'] as int? ?? 0,
+      streak: json['streak'] as int? ?? 0,
+      lastDuel: last,
+      // Profiles from before the history: start it with the last duel.
+      history: history.isEmpty && last != null ? [last] : history,
+      stats: PlayerStats.fromJson(json['stats']),
+      badges: _badgesFromJson(json['badges']),
+    );
+  }
+
+  /// Stored as a list; the database may hand it back as a map with "0",
+  /// "1", … keys instead.
+  static List<LastDuel> _historyFromJson(Object? json) {
+    final items = switch (json) {
+      final List l => l,
+      final Map m => [
+        for (final k
+            in m.keys.toList()..sort(
+              (a, b) => (int.tryParse('$a') ?? 0) - (int.tryParse('$b') ?? 0),
+            ))
+          m[k],
+      ],
+      _ => const [],
+    };
+    final list = [for (final i in items) ?LastDuel.fromJson(i)]
+      ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+    return List.unmodifiable(list.take(maxHistory));
+  }
 
   static Map<String, int> _badgesFromJson(Object? json) {
     if (json is! Map) return const {};

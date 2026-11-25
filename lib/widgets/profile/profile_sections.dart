@@ -403,3 +403,135 @@ class ProfileBadges extends StatelessWidget {
     );
   }
 }
+
+/// The latest duels, newest first: the first few, the rest behind
+/// "Toon alle".
+class DuelHistoryCard extends StatefulWidget {
+  const DuelHistoryCard({super.key, required this.history, this.onOpen});
+
+  final List<LastDuel> history;
+
+  /// Opens the opponent's profile; null for duels without an account id.
+  final void Function(LastDuel duel)? onOpen;
+
+  /// Shown before "Toon alle" is tapped.
+  static const collapsed = 5;
+
+  @override
+  State<DuelHistoryCard> createState() => _DuelHistoryCardState();
+}
+
+class _DuelHistoryCardState extends State<DuelHistoryCard> {
+  bool _all = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final history = widget.history;
+    if (history.isEmpty) {
+      return AppCard(
+        child: Text(
+          'Nog geen duels gespeeld.',
+          style: AppTextStyles.body(
+            14,
+            weight: FontWeight.w700,
+            color: AppColors.textMuted,
+          ),
+        ),
+      );
+    }
+    final shown = _all
+        ? history
+        : history.take(DuelHistoryCard.collapsed).toList();
+    final hidden = history.length - shown.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, d) in shown.indexed) ...[
+          if (i > 0) const SizedBox(height: 8),
+          _DuelRow(
+            duel: d,
+            onTap: d.opponentUid == null || widget.onOpen == null
+                ? null
+                : () => widget.onOpen!(d),
+          ),
+        ],
+        if (hidden > 0 || _all && history.length > DuelHistoryCard.collapsed)
+          TextButton(
+            onPressed: () => setState(() => _all = !_all),
+            child: Text(
+              _all ? 'Toon minder' : 'Toon alle ${history.length} duels',
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DuelRow extends StatelessWidget {
+  const _DuelRow({required this.duel, this.onTap});
+
+  final LastDuel duel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final score = '${duel.roundsWon}–${duel.roundsLost}';
+    return Semantics(
+      label:
+          '${duel.won ? 'Gewonnen' : 'Verloren'} tegen ${duel.opponentName}, '
+          '$score, ${duel.playedAt.timeAgo()}',
+      excludeSemantics: true,
+      button: onTap != null,
+      onTap: onTap,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                AvatarTile(name: duel.opponentName, size: 36),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'vs ${duel.opponentName}',
+                        style: AppTextStyles.body(14, weight: FontWeight.w900),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        duel.playedAt.timeAgo(),
+                        style: AppTextStyles.body(
+                          12,
+                          weight: FontWeight.w700,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PillBadge(
+                  label: duel.won ? 'WIN $score' : 'VERLIES $score',
+                  color: duel.won ? AppColors.green : AppColors.redSoft,
+                ),
+                if (onTap != null) ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textMuted,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

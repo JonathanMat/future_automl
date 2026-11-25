@@ -314,6 +314,12 @@ class FirebaseFriendsBackend implements FriendsBackend {
   }
 
   @override
+  Stream<bool> inviteOpen(String toUid) => _db
+      .ref('invites/$toUid/$_me/roomCode')
+      .onValue
+      .map((e) => e.snapshot.exists);
+
+  @override
   Future<void> cancelInvite(String toUid) =>
       _db.ref('invites/$toUid/$_me').remove();
 
@@ -347,14 +353,27 @@ class FirebaseFriendsBackend implements FriendsBackend {
     Object? clean(Object? x) => switch (x) {
       final num n => n.toInt(),
       final Map m => {for (final e in m.entries) '${e.key}': clean(e.value)},
+      final List l => [for (final e in l) clean(e)],
       _ => x,
     };
     return {for (final e in v.entries) '${e.key}': clean(e.value)};
   }
 
   @override
-  Future<void> saveProgress(Map<String, Object?> progress) =>
-      _db.ref('users/$_me/progress').set(progress);
+  Future<void> saveProgress(Map<String, Object?> progress) async {
+    final ref = _db.ref('users/$_me/progress');
+    try {
+      await ref.set(progress);
+    } on FirebaseException catch (e) {
+      // Rules from before the duel history refuse the whole write: keep
+      // syncing the rest until the new rules are published.
+      if (e.code != 'permission-denied' || !progress.containsKey('history')) {
+        rethrow;
+      }
+      debugPrint('saveProgress: history refused, publish database.rules.json');
+      await ref.set({...progress}..remove('history'));
+    }
+  }
 
   @override
   Future<List<Map<String, Object?>>> loadRecent() async {

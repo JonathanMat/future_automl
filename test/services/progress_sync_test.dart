@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spell_duel/models/duel_summary.dart';
+import 'package:spell_duel/models/player_profile.dart';
 import 'package:spell_duel/providers/friends_provider.dart';
 import 'package:spell_duel/providers/profile_provider.dart';
 import 'package:spell_duel/services/social/mock_friends_backend.dart';
@@ -46,6 +47,21 @@ void main() {
     await pumpEventQueue();
     expect(backend.savedProgress?['xp'], 240);
     expect(backend.savedProgress?['wins'], 2);
+  });
+
+  test('the duel history is kept to the latest ones and synced', () async {
+    final profile = await _profile();
+    for (var i = 0; i < PlayerProfile.maxHistory + 3; i++) {
+      await profile.recordGame(_win(), at: DateTime(2026, 1, 1, 0, i));
+    }
+    expect(profile.profile.history, hasLength(PlayerProfile.maxHistory));
+    expect(profile.profile.history.first.playedAt, DateTime(2026, 1, 1, 0, 22));
+
+    final backend = MockFriendsBackend();
+    FriendsProvider(backend).attach(profile);
+    await pumpEventQueue();
+    final saved = backend.savedProgress?['history'] as List?;
+    expect(saved, hasLength(PlayerProfile.maxHistory));
   });
 
   test('keeps the copy with the most XP', () async {

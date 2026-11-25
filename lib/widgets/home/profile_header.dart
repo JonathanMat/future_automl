@@ -51,7 +51,7 @@ class ProfileHeader extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         IconSquareButton(
-          icon: Icons.tune_rounded,
+          icon: Icons.settings_rounded,
           tooltip: 'Instellingen',
           onPressed: onSettings,
         ),

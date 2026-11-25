@@ -126,8 +126,24 @@ class MockFriendsBackend implements FriendsBackend {
   }
 
   @override
-  Future<void> sendInvite(String toUid, String roomCode) async =>
-      sentInvites[toUid] = roomCode;
+  Future<void> sendInvite(String toUid, String roomCode) async {
+    sentInvites[toUid] = roomCode;
+    if (!_sentCtl.isClosed) _sentCtl.add(null);
+  }
+
+  final _sentCtl = StreamController<void>.broadcast();
+
+  @override
+  Stream<bool> inviteOpen(String toUid) async* {
+    yield sentInvites.containsKey(toUid);
+    yield* _sentCtl.stream.map((_) => sentInvites.containsKey(toUid));
+  }
+
+  /// The friend taps "Weiger" on your invite (for tests).
+  void declineSentInvite(String toUid) {
+    sentInvites.remove(toUid);
+    if (!_sentCtl.isClosed) _sentCtl.add(null);
+  }
 
   /// How often each invite was refreshed (for tests).
   final Map<String, int> refreshedInvites = {};
@@ -147,7 +163,10 @@ class MockFriendsBackend implements FriendsBackend {
   }
 
   @override
-  Future<void> cancelInvite(String toUid) async => sentInvites.remove(toUid);
+  Future<void> cancelInvite(String toUid) async {
+    sentInvites.remove(toUid);
+    if (!_sentCtl.isClosed) _sentCtl.add(null);
+  }
 
   @override
   Future<void> dismissInvite(String fromUid) async {
@@ -189,6 +208,16 @@ class MockFriendsBackend implements FriendsBackend {
           if (f.wins > 0) 'fastestMs': 420 + seed % 300,
         }),
         badges: {if (f.wins > 0) 'eerste_winst': 0},
+        history: [
+          for (var i = 0; i < (f.wins + f.losses).clamp(0, 8); i++)
+            LastDuel(
+              opponentName: const ['Daan', 'Milan', 'Lotte', 'Bot'][i % 4],
+              won: (seed + i) % 3 != 0,
+              roundsWon: (seed + i) % 3 != 0 ? 3 : 1 + i % 2,
+              roundsLost: (seed + i) % 3 != 0 ? i % 3 : 3,
+              playedAt: DateTime(2026, 11, 20).subtract(Duration(hours: i * 7)),
+            ),
+        ],
       ),
     );
   }
@@ -234,5 +263,6 @@ class MockFriendsBackend implements FriendsBackend {
     await _friendsCtl.close();
     await _requestsCtl.close();
     await _invitesCtl.close();
+    await _sentCtl.close();
   }
 }

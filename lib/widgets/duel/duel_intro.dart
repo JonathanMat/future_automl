@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../services/audio/sfx_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/extensions.dart';
@@ -60,6 +61,7 @@ class _DuelIntroState extends State<DuelIntro>
   /// Seconds on the intro's clock.
   double get _t => _c.value * DuelIntro.duration.inMilliseconds / 1000;
 
+  // Mirrored in the sound (INTRO_* in tool/gen_sfx.py): keep in sync.
   static const _slam = .36;
   static const _vsLand = .58;
   static const _exit = 2.2;
@@ -68,6 +70,7 @@ class _DuelIntroState extends State<DuelIntro>
   void initState() {
     super.initState();
     _c.forward();
+    SfxService.instance.play(SfxSound.duelIntro);
   }
 
   void _onTick() {

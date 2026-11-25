@@ -48,9 +48,10 @@ abstract final class RoomFlow {
     BuildContext context,
     ChallengeInvite invite,
   ) async {
-    final challenges = context.read<ChallengeProvider>();
-    unawaited(challenges.dismiss(invite));
+    final challenges = context.read<ChallengeProvider>()..hide(invite);
     await join(context, invite.roomCode);
+    // Only now: removed earlier, the sender would think it was declined.
+    unawaited(challenges.dismiss(invite));
   }
 
   static Future<void> join(BuildContext context, String code) async {

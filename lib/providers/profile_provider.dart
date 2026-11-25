@@ -137,6 +137,14 @@ class ProfileProvider extends ChangeNotifier {
     final now = at ?? DateTime.now();
     final won = summary.won;
     final streak = won ? _profile.streak + 1 : 0;
+    final duel = LastDuel(
+      opponentName: summary.opponentName,
+      opponentUid: summary.opponentUid,
+      won: won,
+      roundsWon: summary.roundsWon,
+      roundsLost: summary.roundsLost,
+      playedAt: now,
+    );
     _profile = _profile.copyWith(
       xp: _profile.xp + summary.xpGained,
       wins: _profile.wins + (won ? 1 : 0),
@@ -147,13 +155,8 @@ class ProfileProvider extends ChangeNotifier {
         streakAfter: streak,
         vsFriend: vsFriend,
       ),
-      lastDuel: LastDuel(
-        opponentName: summary.opponentName,
-        won: won,
-        roundsWon: summary.roundsWon,
-        roundsLost: summary.roundsLost,
-        playedAt: now,
-      ),
+      lastDuel: duel,
+      history: [duel, ..._profile.history.take(PlayerProfile.maxHistory - 1)],
     );
 
     // Match on the account id when we have one, otherwise on the name.
@@ -191,6 +194,7 @@ class ProfileProvider extends ChangeNotifier {
       losses: progress.losses,
       streak: progress.streak,
       lastDuel: progress.lastDuel,
+      history: progress.history,
       stats: progress.stats,
       badges: progress.badges,
     );

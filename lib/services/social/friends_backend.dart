@@ -151,6 +151,10 @@ abstract class FriendsBackend {
   /// already removed it.
   Future<void> refreshInvite(String toUid);
 
+  /// Whether your invite to [toUid] is still there. It goes away when they
+  /// decline it (or after they joined). Updates live.
+  Stream<bool> inviteOpen(String toUid);
+
   /// Takes back your invite to [toUid] (they joined, or you left).
   Future<void> cancelInvite(String toUid);
 

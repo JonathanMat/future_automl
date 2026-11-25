@@ -7,45 +7,47 @@ import '../../theme/app_text_styles.dart';
 import '../generic/app_card.dart';
 import '../generic/chunky_button.dart';
 
-/// Guest or Google account, with sign in / sign out.
+Future<void> _run(BuildContext context, Future<String?> action) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final message = await action;
+  if (message == null) return;
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+}
+
+/// "Uitloggen?" and, when confirmed, signs out of Google.
+Future<void> confirmSignOut(BuildContext context) async {
+  final account = context.read<AccountProvider>();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Uitloggen?'),
+      content: const Text(
+        'Je vrienden en scores blijven bij je Google-account. Log later '
+        'opnieuw in om ze terug te krijgen. Tot dan speel je als nieuwe gast.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Annuleren'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: TextButton.styleFrom(foregroundColor: AppColors.redSoft),
+          child: const Text('Uitloggen'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  await _run(context, account.signOut());
+}
+
+/// Guest or Google account, with sign in. Signing out is at the bottom
+/// of the settings screen.
 class AccountCard extends StatelessWidget {
   const AccountCard({super.key});
-
-  Future<void> _run(BuildContext context, Future<String?> action) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final message = await action;
-    if (message == null) return;
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _confirmSignOut(BuildContext context) async {
-    final account = context.read<AccountProvider>();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Uitloggen?'),
-        content: const Text(
-          'Je vrienden en scores blijven bij je Google-account. Log later '
-          'opnieuw in om ze terug te krijgen. Tot dan speel je als nieuwe gast.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuleren'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.redSoft),
-            child: const Text('Uitloggen'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) return;
-    await _run(context, account.signOut());
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,8 +97,8 @@ class AccountCard extends StatelessWidget {
                 : 'Je vrienden en scores zijn bewaard in je Google-account.',
             style: AppTextStyles.body(13, color: AppColors.textSoft),
           ),
-          const SizedBox(height: 12),
-          if (info.isGuest)
+          if (info.isGuest) ...[
+            const SizedBox(height: 12),
             ChunkyButton(
               label: 'Inloggen met Google',
               icon: Icons.login_rounded,
@@ -104,16 +106,8 @@ class AccountCard extends StatelessWidget {
               height: 48,
               loading: account.busy,
               onPressed: () => _run(context, account.signInWithGoogle()),
-            )
-          else
-            ChunkyButton(
-              label: 'Uitloggen',
-              display: false,
-              height: 48,
-              style: ChunkyButtonStyle.secondary,
-              loading: account.busy,
-              onPressed: () => _confirmSignOut(context),
             ),
+          ],
         ],
       ),
     );

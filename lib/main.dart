@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -132,7 +134,8 @@ class SpellDuelApp extends StatefulWidget {
   State<SpellDuelApp> createState() => _SpellDuelAppState();
 }
 
-class _SpellDuelAppState extends State<SpellDuelApp> {
+class _SpellDuelAppState extends State<SpellDuelApp>
+    with WidgetsBindingObserver {
   late final AppRouter _router = AppRouter(widget.backend);
   // Created here (not lazily) so they sign in at startup and requests
   // show up right away.
@@ -192,6 +195,32 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
     super.initState();
     _applySettings();
     widget.profile.addListener(_applySettings);
+    WidgetsBinding.instance.addObserver(this);
+    _game.addListener(_onGame);
+  }
+
+  /// Back from the background: Android may have stopped the sound engine.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      SfxService.instance.ensureRunning();
+    }
+  }
+
+  bool _wasInRoom = false;
+  Timer? _sfxRestart;
+
+  /// A call just ended: restart the sound engine once Android has left
+  /// call mode (see [SfxService.restart]).
+  void _onGame() {
+    final inRoom = _game.inRoom;
+    if (_wasInRoom && !inRoom) {
+      _sfxRestart?.cancel();
+      _sfxRestart = Timer(const Duration(milliseconds: 800), () {
+        if (!_game.inRoom) SfxService.instance.restart();
+      });
+    }
+    _wasInRoom = inRoom;
   }
 
   void _applySettings() {
@@ -202,6 +231,9 @@ class _SpellDuelAppState extends State<SpellDuelApp> {
   @override
   void dispose() {
     widget.profile.removeListener(_applySettings);
+    WidgetsBinding.instance.removeObserver(this);
+    _game.removeListener(_onGame);
+    _sfxRestart?.cancel();
     _account.dispose();
     _tournament.dispose();
     _challenges.dispose();
