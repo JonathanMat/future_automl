@@ -1,4 +1,5 @@
 import '../utils/constants.dart';
+import 'player_stats.dart';
 
 /// The last duel, shown on the home screen.
 class LastDuel {
@@ -48,6 +49,8 @@ class PlayerProfile {
     this.losses = 0,
     this.streak = 0,
     this.lastDuel,
+    this.stats = const PlayerStats(),
+    this.badges = const {},
   });
 
   final String name;
@@ -60,6 +63,14 @@ class PlayerProfile {
   /// Wins in a row (0 after a loss).
   final int streak;
   final LastDuel? lastDuel;
+
+  /// Lifetime counters for the badges.
+  final PlayerStats stats;
+
+  /// Unlocked badge ids, with when (ms since epoch).
+  final Map<String, int> badges;
+
+  bool hasBadge(String id) => badges.containsKey(id);
 
   bool get hasName => name.trim().isNotEmpty;
 
@@ -79,6 +90,8 @@ class PlayerProfile {
     int? losses,
     int? streak,
     LastDuel? lastDuel,
+    PlayerStats? stats,
+    Map<String, int>? badges,
   }) => PlayerProfile(
     name: name ?? this.name,
     xp: xp ?? this.xp,
@@ -86,6 +99,8 @@ class PlayerProfile {
     losses: losses ?? this.losses,
     streak: streak ?? this.streak,
     lastDuel: lastDuel ?? this.lastDuel,
+    stats: stats ?? this.stats,
+    badges: badges ?? this.badges,
   );
 
   Map<String, Object?> toJson() => {
@@ -95,6 +110,8 @@ class PlayerProfile {
     'losses': losses,
     'streak': streak,
     'lastDuel': lastDuel?.toJson(),
+    'stats': stats.toJson(),
+    'badges': badges,
   };
 
   /// Everything except the name, for syncing to the server.
@@ -111,5 +128,15 @@ class PlayerProfile {
     losses: json['losses'] as int? ?? 0,
     streak: json['streak'] as int? ?? 0,
     lastDuel: LastDuel.fromJson(json['lastDuel']),
+    stats: PlayerStats.fromJson(json['stats']),
+    badges: _badgesFromJson(json['badges']),
   );
+
+  static Map<String, int> _badgesFromJson(Object? json) {
+    if (json is! Map) return const {};
+    return {
+      for (final e in json.entries)
+        if (e.value is num) '${e.key}': (e.value as num).toInt(),
+    };
+  }
 }

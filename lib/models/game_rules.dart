@@ -50,6 +50,7 @@ class GameConfig {
     this.revealGrace = const Duration(seconds: 3),
     this.resultPause = const Duration(seconds: 3),
     this.roundLead = const Duration(milliseconds: 800),
+    this.introLead = const Duration(milliseconds: 2900),
   });
 
   /// Lives each player starts with.
@@ -73,6 +74,10 @@ class GameConfig {
   /// Extra delay before the countdown starts, so both phones receive the
   /// round before it begins.
   final Duration roundLead;
+
+  /// Extra delay before the first round of every game, for the "VS" intro
+  /// on the duel screen. The countdown starts when the intro is done.
+  final Duration introLead;
 }
 
 /// Why a round ended the way it did. Useful for UI text and debugging.

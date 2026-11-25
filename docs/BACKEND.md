@@ -219,3 +219,28 @@ Setup (once):
 - Old rooms are not cleaned up automatically.
 - Privacy: video and audio go phone-to-phone (or via TURN, encrypted). Firebase
   only sees names, spell names, hashes and scores.
+
+## Badges
+
+`models/badge.dart` (the 18 badges), `models/player_stats.dart` (lifetime
+counters) and `ProfileProvider.recordGame`.
+
+```
+users/{uid}/progress/stats/{key}: number      // e.g. wins_vuur, reflects, fastestMs
+users/{uid}/progress/badges/{badgeId}: <ms>   // when it was unlocked
+```
+
+- After every duel the stats are updated and every badge is checked; new
+  ones pop up on the result screen (`showBadgeUnlocks`).
+- They sync with the rest of the progress (FriendsProvider), so they
+  survive a new phone once you log in with Google.
+- **Publish `database.rules.json` again**: `progress` only accepts known
+  fields, and `stats` and `badges` are new.
+
+## VS intro
+
+`widgets/duel/duel_intro.dart`, shown when the duel screen opens (also on
+a rematch). The first round of every game starts `GameConfig.introLead`
+(2.9 s) later, so the countdown only begins after the intro: in the mock
+via `_startRound(intro: true)`, in Firebase by the host when `game`
+changes.

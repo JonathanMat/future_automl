@@ -6,6 +6,7 @@ import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../services/game/game_backend.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/badges/badge_unlock_overlay.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/result/duel_stats_card.dart';
 import '../../widgets/result/result_hero.dart';
@@ -21,6 +22,17 @@ class ResultScreen extends StatefulWidget {
 
 class _ResultScreenState extends State<ResultScreen> {
   bool _navigated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Let the result settle in first, then celebrate new badges.
+    Future<void>.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted || _navigated) return;
+      final fresh = context.read<ProfileProvider>().takeNewBadges();
+      if (fresh.isNotEmpty) showBadgeUnlocks(context, fresh);
+    });
+  }
 
   static const _activePhases = {
     GamePhase.countdown,

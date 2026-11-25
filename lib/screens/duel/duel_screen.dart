@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../navigators/app_router.dart';
 import '../../models/spell_info.dart';
+import '../../providers/friends_provider.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../services/game/game_backend.dart';
@@ -12,6 +13,7 @@ import '../../utils/gesture_constants.dart';
 import '../../widgets/duel/cast_meter.dart';
 import '../../widgets/duel/duel_center_banner.dart';
 import '../../widgets/duel/duel_header.dart';
+import '../../widgets/duel/duel_intro.dart';
 import '../../widgets/duel/effects/spell_effects_layer.dart';
 import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/gesture_debug_overlay.dart';
@@ -35,6 +37,9 @@ class _DuelScreenState extends State<DuelScreen> {
   String? _shownError;
   final _topFeedKey = GlobalKey();
   final _bottomFeedKey = GlobalKey();
+
+  /// The "VS" intro plays once when the duel opens.
+  bool _introDone = false;
 
   /// While these phases run, the opponent's video is blurred.
   static const _hiddenPhases = {
@@ -119,6 +124,12 @@ class _DuelScreenState extends State<DuelScreen> {
     final showingResult =
         s.phase == GamePhase.roundResult || s.phase == GamePhase.finished;
     final opponentName = s.opponent?.name ?? 'Tegenstander';
+    final profile = context.read<ProfileProvider>();
+    final friends = context.read<FriendsProvider>();
+    final opponentUid = s.opponent?.uid;
+    final opponentFriend = opponentUid == null
+        ? null
+        : friends.friends.where((f) => f.uid == opponentUid).firstOrNull;
     final mySpellOnFeed = s.mySpell ?? (showingResult ? result?.mySpell : null);
 
     return PopScope(
@@ -128,124 +139,150 @@ class _DuelScreenState extends State<DuelScreen> {
           s.phase == GamePhase.finished ? _leave() : _confirmLeave();
         }
       },
-      child: Scaffold(
-        body: SafeArea(
-          child: SpellEffectsLayer(
-            result: showingResult ? result : null,
-            topKey: _topFeedKey,
-            bottomKey: _bottomFeedKey,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                children: [
-                  DuelHeader(
-                    me: s.me,
-                    opponent: s.opponent,
-                    round: s.round,
-                    config: s.config,
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    flex: 206,
-                    child: FxTintTarget(
-                      side: FxSide.top,
-                      child: VideoFeed(
-                        key: _topFeedKey,
-                        stream: shareVideo ? game.remoteStream : null,
-                        blurred: _hiddenPhases.contains(s.phase),
-                        placeholder: shareVideo
-                            ? null
-                            : Center(
-                                child: AvatarTile(name: opponentName, size: 72),
+      child: Stack(
+        children: [
+          Scaffold(
+            body: SafeArea(
+              child: SpellEffectsLayer(
+                result: showingResult ? result : null,
+                topKey: _topFeedKey,
+                bottomKey: _bottomFeedKey,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    children: [
+                      DuelHeader(
+                        me: s.me,
+                        opponent: s.opponent,
+                        round: s.round,
+                        config: s.config,
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        flex: 206,
+                        child: FxTintTarget(
+                          side: FxSide.top,
+                          child: VideoFeed(
+                            key: _topFeedKey,
+                            stream: shareVideo ? game.remoteStream : null,
+                            blurred: _hiddenPhases.contains(s.phase),
+                            placeholder: shareVideo
+                                ? null
+                                : Center(
+                                    child: AvatarTile(
+                                      name: opponentName,
+                                      size: 72,
+                                    ),
+                                  ),
+                            overlays: [
+                              Positioned(
+                                top: 12,
+                                left: 12,
+                                child: LiveBadge(status: s.callStatus),
                               ),
-                        overlays: [
-                          Positioned(
-                            top: 12,
-                            left: 12,
-                            child: LiveBadge(status: s.callStatus),
+                              Positioned(
+                                top: 12,
+                                right: 12,
+                                child: ConnectionBars(status: s.callStatus),
+                              ),
+                              Positioned(
+                                left: 14,
+                                right: 14,
+                                bottom: 12,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        opponentName,
+                                        style: AppTextStyles.display(20),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    OpponentSpellChip(
+                                      hidden: !showingResult,
+                                      spell: result?.opponentSpell,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          Positioned(
-                            top: 12,
-                            right: 12,
-                            child: ConnectionBars(status: s.callStatus),
-                          ),
-                          Positioned(
-                            left: 14,
-                            right: 14,
-                            bottom: 12,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    opponentName,
-                                    style: AppTextStyles.display(20),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      DuelCenterBanner(state: s),
+                      Expanded(
+                        flex: 240,
+                        child: FxTintTarget(
+                          side: FxSide.bottom,
+                          child: VideoFeed(
+                            key: _bottomFeedKey,
+                            stream: game.localStream,
+                            mirror: true,
+                            borderColor: mySpellOnFeed?.color ?? AppColors.gold,
+                            glowColor: mySpellOnFeed?.color ?? AppColors.gold,
+                            overlays: [
+                              const AimBrackets(),
+                              const Positioned(
+                                top: 12,
+                                left: 12,
+                                child: FeedLabel('JIJ'),
+                              ),
+                              if (GestureConstants.debug &&
+                                  game.recognitionAvailable)
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: GestureDebugOverlay(
+                                    frame: game.prediction.frame,
                                   ),
                                 ),
-                                OpponentSpellChip(
-                                  hidden: !showingResult,
-                                  spell: result?.opponentSpell,
+                              Positioned(
+                                left: 10,
+                                bottom: 10,
+                                child: CastMeter(
+                                  prediction: game.prediction,
+                                  holdProgress: game.holdProgress,
+                                  recognitionAvailable:
+                                      game.recognitionAvailable,
+                                  castSpell: mySpellOnFeed,
+                                  canCast: s.canCast,
                                 ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  DuelCenterBanner(state: s),
-                  Expanded(
-                    flex: 240,
-                    child: FxTintTarget(
-                      side: FxSide.bottom,
-                      child: VideoFeed(
-                        key: _bottomFeedKey,
-                        stream: game.localStream,
-                        mirror: true,
-                        borderColor: mySpellOnFeed?.color ?? AppColors.gold,
-                        glowColor: mySpellOnFeed?.color ?? AppColors.gold,
-                        overlays: [
-                          const AimBrackets(),
-                          const Positioned(
-                            top: 12,
-                            left: 12,
-                            child: FeedLabel('JIJ'),
-                          ),
-                          if (GestureConstants.debug &&
-                              game.recognitionAvailable)
-                            Positioned(
-                              top: 12,
-                              right: 12,
-                              child: GestureDebugOverlay(
-                                frame: game.prediction.frame,
                               ),
-                            ),
-                          Positioned(
-                            left: 10,
-                            bottom: 10,
-                            child: CastMeter(
-                              prediction: game.prediction,
-                              holdProgress: game.holdProgress,
-                              recognitionAvailable: game.recognitionAvailable,
-                              castSpell: mySpellOnFeed,
-                              canCast: s.canCast,
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 104,
+                        child: _BottomArea(state: s, game: game),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    height: 104,
-                    child: _BottomArea(state: s, game: game),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+          if (!_introDone)
+            Positioned.fill(
+              child: DuelIntro(
+                me: IntroPlayer(
+                  name: profile.profile.name,
+                  tag: friends.myTag,
+                  subtitle: 'LVL ${profile.profile.level}',
+                ),
+                opponent: IntroPlayer(
+                  name: opponentName,
+                  tag: opponentFriend?.tag,
+                  subtitle: opponentFriend == null
+                      ? null
+                      : '${opponentFriend.wins} WINS',
+                ),
+                onDone: () => setState(() => _introDone = true),
+              ),
+            ),
+        ],
       ),
     );
   }

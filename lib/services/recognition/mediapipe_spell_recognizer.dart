@@ -88,17 +88,20 @@ class MediaPipeSpellRecognizer implements SpellRecognizer {
     final raw = getGesture(hands);
     final stable = _stabilizer.add(raw.label);
     final streak = _stabilizer.streak;
+    final candidate = _stabilizer.candidate;
     final frame = GestureFrame(
       hands: hands,
       rawGesture: raw.label,
       rawScore: raw.score,
       stableGesture: stable,
       streak: streak,
+      candidateGesture: candidate,
     );
 
     final spell = spellForLabel(stable);
-    // Progress of the gesture you are making now towards being stable.
-    final stability = raw.label == stable && spell != null
+    // Progress of the gesture you are making now towards being stable. A
+    // blip of a frame or two doesn't drop it (see GestureStabilizer).
+    final stability = candidate == stable && spell != null
         ? 1.0
         : (streak / GestureConstants.stableFrames).clamp(0.0, 1.0);
     return SpellPrediction(
@@ -106,6 +109,7 @@ class MediaPipeSpellRecognizer implements SpellRecognizer {
       confidence: raw.score,
       stability: stability,
       frame: frame,
+      candidate: spellForLabel(candidate),
     );
   }
 

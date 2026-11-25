@@ -15,7 +15,7 @@ class FreezeLayer extends FxLayer {
     required this.side,
     required this.impact,
     this.hold = 1.15,
-    this.seed = 4,
+    this.seed = defaultSeed,
   }) : super(duration: grow + hold + crack + shatter);
 
   static const grow = .45;
@@ -30,18 +30,16 @@ class FreezeLayer extends FxLayer {
   double get crackStart => grow + hold;
   double get shatterStart => crackStart + crack;
 
-  // Geometry depends on the camera's size, so it is built on first paint.
+  // Geometry that depends on where it was hit, built on first paint.
+  // The frost itself (edges, branches, crystals) comes from [FrostArt].
   Rect? _builtFor;
-  late List<_Segment> _frost;
-  late List<({Offset p, double size, double order})> _crystals;
   late List<List<Offset>> _cracks;
   late List<_Shard> _shards;
   late List<({double x, double y, double speed, double size})> _flakes;
 
-  /// Edge frost, branches and crystals, drawn once into an image: drawing
-  /// hundreds of glowing lines every frame made phones stutter.
-  ui.Image? _frostImage;
-  double _bakedRatio = 0;
+  /// Seeds used by the effects, so [FrostArt.prepare] can draw them early.
+  static const defaultSeed = 4;
+  static const reflectSeed = 13;
 
   @override
   void paint(Canvas canvas, FxContext ctx, double t) {
@@ -133,64 +131,7 @@ class FreezeLayer extends FxLayer {
 
   void _build(Rect rect, Offset hit) {
     _builtFor = rect;
-    _frostImage?.dispose();
-    _frostImage = null;
-    final rnd = Random(seed);
-
-    // Frost branches growing in from the edges.
-    _frost = [];
-    void grow(Offset p, double angle, double len, int depth, double order) {
-      if (depth <= 0 || len < 4) return;
-      final q = p + polar(angle, len);
-      _frost.add(_Segment(p, q, order));
-      grow(
-        q,
-        angle + (rnd.nextDouble() - .5) * .6,
-        len * .78,
-        depth - 1,
-        order + .12,
-      );
-      if (rnd.nextDouble() < .85) {
-        final side = rnd.nextBool() ? 1 : -1;
-        grow(
-          Offset.lerp(p, q, .5)!,
-          angle + side * (.7 + rnd.nextDouble() * .5),
-          len * .55,
-          depth - 2,
-          order + .1,
-        );
-      }
-    }
-
-    for (var i = 0; i < 26; i++) {
-      final edge = i % 4;
-      final f = rnd.nextDouble();
-      final (Offset p, double inward) = switch (edge) {
-        0 => (Offset(rect.left + f * rect.width, rect.top), pi / 2),
-        1 => (Offset(rect.right, rect.top + f * rect.height), pi),
-        2 => (Offset(rect.left + f * rect.width, rect.bottom), -pi / 2),
-        _ => (Offset(rect.left, rect.top + f * rect.height), 0.0),
-      };
-      grow(
-        p,
-        inward + (rnd.nextDouble() - .5) * 1.1,
-        20 + rnd.nextDouble() * 30,
-        5,
-        rnd.nextDouble() * .3,
-      );
-    }
-
-    _crystals = [
-      for (var i = 0; i < 12; i++)
-        (
-          p: Offset(
-            rect.left + rnd.nextDouble() * rect.width,
-            rect.top + rnd.nextDouble() * rect.height,
-          ),
-          size: 5 + rnd.nextDouble() * 9,
-          order: .3 + rnd.nextDouble() * .6,
-        ),
-    ];
+    final rnd = Random(seed + 1);
 
     _flakes = [
       for (var i = 0; i < 22; i++)
@@ -246,8 +187,7 @@ class FreezeLayer extends FxLayer {
   ) {
     final reveal = span(t, .05, grow + .35);
     if (reveal <= 0) return;
-    if (_frostImage == null || _bakedRatio != ratio) _bake(rect, ratio);
-    final image = _frostImage!;
+    final image = FrostArt.image(rect.size, ratio, seed);
     final src = Rect.fromLTWH(
       0,
       0,
@@ -272,89 +212,6 @@ class FreezeLayer extends FxLayer {
       )
       ..drawImageRect(image, src, rect, paint)
       ..restore();
-  }
-
-  void _bake(Rect rect, double ratio) {
-    _frostImage?.dispose();
-    final recorder = ui.PictureRecorder();
-    final c = Canvas(recorder)
-      ..scale(ratio)
-      ..translate(-rect.left, -rect.top);
-    _paintEdgeFrost(c, rect, 1);
-    // Past 1 so every branch is fully grown.
-    _paintFrostBranches(c, 2);
-    final picture = recorder.endRecording();
-    _frostImage = picture.toImageSync(
-      max(1, (rect.width * ratio).ceil()),
-      max(1, (rect.height * ratio).ceil()),
-    );
-    _bakedRatio = ratio;
-    picture.dispose();
-  }
-
-  void _paintEdgeFrost(Canvas canvas, Rect r, double g) {
-    if (g <= 0) return;
-    const depth = 46.0;
-    final white = Colors.white.withValues(alpha: .75 * g);
-    final clear = Colors.white.withValues(alpha: 0);
-    void strip(Rect area, Offset from, Offset to) => canvas.drawRect(
-      area,
-      Paint()..shader = ui.Gradient.linear(from, to, [white, clear]),
-    );
-    strip(
-      Rect.fromLTWH(r.left, r.top, r.width, depth),
-      r.topLeft,
-      r.topLeft + const Offset(0, depth),
-    );
-    strip(
-      Rect.fromLTWH(r.left, r.bottom - depth, r.width, depth),
-      r.bottomLeft,
-      r.bottomLeft - const Offset(0, depth),
-    );
-    strip(
-      Rect.fromLTWH(r.left, r.top, depth, r.height),
-      r.topLeft,
-      r.topLeft + const Offset(depth, 0),
-    );
-    strip(
-      Rect.fromLTWH(r.right - depth, r.top, depth, r.height),
-      r.topRight,
-      r.topRight - const Offset(depth, 0),
-    );
-  }
-
-  void _paintFrostBranches(Canvas canvas, double progress) {
-    if (progress <= 0) return;
-    final glow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF8FDBFF).withValues(alpha: .5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-    final line = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(alpha: .9);
-    for (final s in _frost) {
-      final f = span(progress, s.order, s.order + .12);
-      if (f <= 0) continue;
-      final end = Offset.lerp(s.a, s.b, f)!;
-      canvas
-        ..drawLine(s.a, end, glow)
-        ..drawLine(s.a, end, line);
-    }
-    for (final c in _crystals) {
-      final f = span(progress, c.order, c.order + .15);
-      if (f <= 0) continue;
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = Colors.white.withValues(alpha: .85 * f);
-      for (var i = 0; i < 6; i++) {
-        canvas.drawLine(c.p, c.p + polar(i * pi / 3, c.size * f), paint);
-      }
-    }
   }
 
   void _paintShimmer(Canvas canvas, Rect r, double t) {
@@ -452,15 +309,6 @@ class FreezeLayer extends FxLayer {
   }
 }
 
-class _Segment {
-  const _Segment(this.a, this.b, this.order);
-
-  final Offset a, b;
-
-  /// When it grows, 0–1.
-  final double order;
-}
-
 class _Shard {
   _Shard({
     required this.points,
@@ -490,4 +338,165 @@ class _Shard {
   final Offset velocity;
   final double spin;
   final Offset origin;
+}
+
+/// The frozen look of a camera: frost along the edges, branches growing in
+/// and small crystals, drawn once per camera size into an image.
+///
+/// Drawing it during the effect (hundreds of glowing lines) made phones
+/// stutter at the moment of impact. [prepare] draws it in the background
+/// before the duel; [image] is instant after that.
+abstract final class FrostArt {
+  static final _images = <String, ui.Image>{};
+  static final _pending = <String, Future<void>>{};
+
+  static String _key(Size size, double ratio, int seed) =>
+      '${size.width.round()}x${size.height.round()}@$ratio#$seed';
+
+  /// Draws the frost for a camera of [size] in the background, if it isn't
+  /// ready yet. Safe to call more than once.
+  static Future<void> prepare(Size size, double ratio, int seed) {
+    if (size.width < 1 || size.height < 1) return Future.value();
+    final key = _key(size, ratio, seed);
+    if (_images.containsKey(key)) return Future.value();
+    return _pending[key] ??= () async {
+      final picture = _record(size, ratio, seed);
+      final image = await picture.toImage(
+        max(1, (size.width * ratio).ceil()),
+        max(1, (size.height * ratio).ceil()),
+      );
+      picture.dispose();
+      _images[key] = image;
+      _pending.remove(key);
+    }();
+  }
+
+  /// The frost image; drawn right now if [prepare] didn't run.
+  static ui.Image image(Size size, double ratio, int seed) {
+    final key = _key(size, ratio, seed);
+    return _images[key] ??= () {
+      final picture = _record(size, ratio, seed);
+      final image = picture.toImageSync(
+        max(1, (size.width * ratio).ceil()),
+        max(1, (size.height * ratio).ceil()),
+      );
+      picture.dispose();
+      return image;
+    }();
+  }
+
+  static ui.Picture _record(Size size, double ratio, int seed) {
+    final r = Offset.zero & size;
+    final rnd = Random(seed);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)..scale(ratio);
+
+    // Frost along the edges.
+    const depth = 46.0;
+    final white = Colors.white.withValues(alpha: .75);
+    final clear = Colors.white.withValues(alpha: 0);
+    void strip(Rect area, Offset from, Offset to) => canvas.drawRect(
+      area,
+      Paint()..shader = ui.Gradient.linear(from, to, [white, clear]),
+    );
+    strip(
+      Rect.fromLTWH(0, 0, r.width, depth),
+      r.topLeft,
+      r.topLeft + const Offset(0, depth),
+    );
+    strip(
+      Rect.fromLTWH(0, r.bottom - depth, r.width, depth),
+      r.bottomLeft,
+      r.bottomLeft - const Offset(0, depth),
+    );
+    strip(
+      Rect.fromLTWH(0, 0, depth, r.height),
+      r.topLeft,
+      r.topLeft + const Offset(depth, 0),
+    );
+    strip(
+      Rect.fromLTWH(r.right - depth, 0, depth, r.height),
+      r.topRight,
+      r.topRight - const Offset(depth, 0),
+    );
+
+    // Branches growing in from the edges, all in one path: one blur for the
+    // glow instead of one per line.
+    final branches = Path();
+    void grow(Offset p, double angle, double len, int level) {
+      if (level <= 0 || len < 4) return;
+      final q = p + polar(angle, len);
+      branches
+        ..moveTo(p.dx, p.dy)
+        ..lineTo(q.dx, q.dy);
+      grow(q, angle + (rnd.nextDouble() - .5) * .6, len * .78, level - 1);
+      if (rnd.nextDouble() < .85) {
+        final side = rnd.nextBool() ? 1 : -1;
+        grow(
+          Offset.lerp(p, q, .5)!,
+          angle + side * (.7 + rnd.nextDouble() * .5),
+          len * .55,
+          level - 2,
+        );
+      }
+    }
+
+    for (var i = 0; i < 26; i++) {
+      final f = rnd.nextDouble();
+      final (Offset p, double inward) = switch (i % 4) {
+        0 => (Offset(f * r.width, 0), pi / 2),
+        1 => (Offset(r.right, f * r.height), pi),
+        2 => (Offset(f * r.width, r.bottom), -pi / 2),
+        _ => (Offset(0, f * r.height), 0.0),
+      };
+      grow(
+        p,
+        inward + (rnd.nextDouble() - .5) * 1.1,
+        20 + rnd.nextDouble() * 30,
+        5,
+      );
+      rnd.nextDouble(); // keeps the old layout's random sequence
+    }
+    canvas
+      ..drawPath(
+        branches,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF8FDBFF).withValues(alpha: .55)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      )
+      ..drawPath(
+        branches,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withValues(alpha: .9),
+      );
+
+    // Small six-armed crystals.
+    final crystals = Path();
+    for (var i = 0; i < 12; i++) {
+      final c = Offset(rnd.nextDouble() * r.width, rnd.nextDouble() * r.height);
+      final arm = 5 + rnd.nextDouble() * 9;
+      rnd.nextDouble();
+      for (var k = 0; k < 6; k++) {
+        final tip = c + polar(k * pi / 3, arm);
+        crystals
+          ..moveTo(c.dx, c.dy)
+          ..lineTo(tip.dx, tip.dy);
+      }
+    }
+    canvas.drawPath(
+      crystals,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = Colors.white.withValues(alpha: .85),
+    );
+
+    return recorder.endRecording();
+  }
 }

@@ -266,7 +266,7 @@ PlannedFx? buildSpellFx(FxPlan plan) {
           side: l,
           impact: (c) => c.nearEdge(l),
           hold: .85,
-          seed: 13,
+          seed: FreezeLayer.reflectSeed,
         );
         layers.add(freeze);
         tints.add(

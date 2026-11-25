@@ -91,15 +91,13 @@ class _VideoFeedState extends State<VideoFeed> {
 
     // Hide at once (a gesture must never show), reveal smoothly.
     final hideNow = widget.blurred ? Duration.zero : AppTransitions.medium;
-    content = TweenAnimationBuilder<double>(
-      tween: Tween(end: widget.blurred ? _hiddenBlur : 0),
-      duration: hideNow,
-      builder: (context, sigma, child) => sigma < 0.5
-          ? child!
-          : ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-              child: child,
-            ),
+    // Blur on and off in one step: animating a blur this strong costs a
+    // phone a lot, right when the round result and its effect start. The
+    // veil below fades instead, which is cheap. `enabled` keeps the tree
+    // the same, so the video view is not rebuilt.
+    content = ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: _hiddenBlur, sigmaY: _hiddenBlur),
+      enabled: widget.blurred,
       child: content,
     );
 

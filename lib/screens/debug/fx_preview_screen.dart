@@ -5,6 +5,9 @@ import '../../models/game_rules.dart';
 import '../../models/game_state.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
+import '../../models/badge.dart';
+import '../../widgets/badges/badge_unlock_overlay.dart';
+import '../../widgets/duel/duel_intro.dart';
 import '../../widgets/duel/effects/spell_effects_layer.dart';
 import '../../widgets/duel/feed_overlays.dart';
 import '../../widgets/duel/video_feed.dart';
@@ -30,6 +33,8 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
 
   /// Paused at this time, or null to play normally.
   double? _scrub;
+
+  bool _intro = false;
 
   /// (label, your spell, opponent's spell)
   static const _cases = <(String, Spell?, Spell?)>[
@@ -77,6 +82,30 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _scaffold(context),
+        if (_intro)
+          Positioned.fill(
+            child: DuelIntro(
+              me: const IntroPlayer(
+                name: 'Jonathan',
+                tag: '4821',
+                subtitle: 'LVL 7',
+              ),
+              opponent: const IntroPlayer(
+                name: 'Maarten',
+                tag: '1203',
+                subtitle: '12 WINS',
+              ),
+              onDone: () => setState(() => _intro = false),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: SpellEffectsLayer(
@@ -122,7 +151,7 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 70),
+                const SizedBox(height: 56),
                 Expanded(
                   child: FxTintTarget(
                     side: FxSide.bottom,
@@ -165,23 +194,52 @@ class _FxPreviewScreenState extends State<FxPreviewScreen> {
                     ),
                   ],
                 ),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    for (final (label, mine, theirs) in _cases)
-                      ActionChip(
-                        label: Text(label),
-                        labelStyle: AppTextStyles.body(
-                          12,
-                          weight: FontWeight.w900,
-                        ),
-                        backgroundColor: AppColors.surfaceRaised,
-                        side: BorderSide.none,
-                        onPressed: () => _play(mine, theirs),
-                      ),
-                  ],
+                // Scrolls on small screens instead of squeezing the cameras.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  child: SingleChildScrollView(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final (label, mine, theirs) in _cases)
+                          ActionChip(
+                            label: Text(label),
+                            labelStyle: AppTextStyles.body(
+                              12,
+                              weight: FontWeight.w900,
+                            ),
+                            backgroundColor: AppColors.surfaceRaised,
+                            side: BorderSide.none,
+                            onPressed: () => _play(mine, theirs),
+                          ),
+                        for (final (label, action) in [
+                          ('▶ VS-intro', () => setState(() => _intro = true)),
+                          (
+                            '🏅 Badge pop-up',
+                            () => showBadgeUnlocks(context, [
+                              badgeById('eerste_winst')!,
+                              badgeById('spiegelmeester')!,
+                              badgeById('foutloos')!,
+                              badgeById('aartsmagier')!,
+                            ]),
+                          ),
+                        ])
+                          ActionChip(
+                            label: Text(label),
+                            labelStyle: AppTextStyles.body(
+                              12,
+                              weight: FontWeight.w900,
+                              color: AppColors.goldInk,
+                            ),
+                            backgroundColor: AppColors.gold,
+                            side: BorderSide.none,
+                            onPressed: action,
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

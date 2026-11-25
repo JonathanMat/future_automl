@@ -22,6 +22,7 @@ class DuelSummary {
     required this.won,
     required this.rounds,
     required this.xpGained,
+    this.startLives = 3,
   });
 
   final String opponentName;
@@ -31,6 +32,9 @@ class DuelSummary {
   final bool won;
   final List<RoundRecord> rounds;
   final int xpGained;
+
+  /// Lives each player started with (for the comeback badge).
+  final int startLives;
 
   int get roundsWon =>
       rounds.where((r) => r.result.outcome == RoundOutcome.win).length;

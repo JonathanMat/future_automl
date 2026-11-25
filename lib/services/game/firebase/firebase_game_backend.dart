@@ -80,6 +80,9 @@ class FirebaseGameBackend implements GameBackend {
   int _hostStartedRound = 0;
   int _hostResolvedRound = 0;
   bool _hostStartingGame = false;
+
+  /// The game whose first round already got the intro delay.
+  int? _introGame;
   final Set<int> _leaderboardRecorded = {};
 
   // ---------------------------------------------------------------------------
@@ -280,6 +283,7 @@ class FirebaseGameBackend implements GameBackend {
   }
 
   Future<void> _enterRoom(String code, {required bool isHost}) async {
+    _introGame = null;
     _code = code;
     _isHost = isHost;
     _error = null;
@@ -552,7 +556,11 @@ class FirebaseGameBackend implements GameBackend {
         (resultAt != null &&
             _serverNow >= resultAt + config.resultPause.inMilliseconds);
     if (readyForNext && _hostStartedRound <= roundNr) {
-      _startRound(roundNr + 1);
+      // The first round of each game (also a rematch) waits for the intro.
+      final game = _asInt(room['game']);
+      final intro = game != _introGame;
+      _introGame = game;
+      _startRound(roundNr + 1, intro: intro);
       return;
     }
 
@@ -569,11 +577,12 @@ class FirebaseGameBackend implements GameBackend {
     }
   }
 
-  void _startRound(int roundNr) {
+  void _startRound(int roundNr, {bool intro = false}) {
     _hostStartedRound = roundNr;
     final castAt =
         _serverNow +
         config.roundLead.inMilliseconds +
+        (intro ? config.introLead.inMilliseconds : 0) +
         config.countdown.inMilliseconds;
     _roomRef!
         .update({

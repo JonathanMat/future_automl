@@ -8,6 +8,7 @@ class SpellPrediction {
     required this.confidence,
     this.stability = 0,
     this.frame,
+    this.candidate,
   });
 
   /// The stable spell, or null for "no gesture". With MediaPipe this only
@@ -22,6 +23,9 @@ class SpellPrediction {
 
   /// Raw details for the debug overlay. Null without a model.
   final GestureFrame? frame;
+
+  /// The gesture being counted towards stable right now, if it is a spell.
+  final Spell? candidate;
 
   /// True when [spell] may be cast.
   bool get isStable => spell != null && stability >= 1;

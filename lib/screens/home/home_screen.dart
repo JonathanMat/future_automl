@@ -13,6 +13,7 @@ import '../../widgets/generic/app_bottom_nav.dart';
 import '../../widgets/generic/chunky_button.dart';
 import '../../widgets/generic/crossed_swords_icon.dart';
 import '../../widgets/generic/stat_tile.dart';
+import '../../widgets/home/badge_shelf.dart';
 import '../../widgets/home/join_room_row.dart';
 import '../../widgets/home/profile_header.dart';
 import '../../widgets/home/recent_duel_card.dart';
@@ -85,6 +86,11 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            BadgeShelf(
+              profile: profile,
+              onOpen: () => Navigator.of(context).pushNamed(AppRoutes.badges),
             ),
             if (profile.lastDuel != null) ...[
               const SizedBox(height: 12),
