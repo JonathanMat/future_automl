@@ -103,12 +103,8 @@ Per klasse namen we **rond de 1500 foto's**, voor 5 klassen:
 | 3 | _[situatie]_ | _[wat er misgaat]_ | _[oorzaak]_ | _[oplossing / aanpak]_ |
 
 ## Reflectie
-
-_Max. 200 woorden per persoon._
-
 ### Maarten
-
-_[in te vullen]_
+Om de trigger moeilijker te laten foppen, zou ik het dataset uitbreiden met meer edge cases, momenteel zijn sommige classes niet zo accuraat, bv shield als je je vingers volledig tegen elkaar houd dan detecteert het niet goed omdat het model getraind is op shield met handen met vingers een beetje open. Ook bv als je gsm op een tafel ligt en je doet je handen erboven, werken sommige gestures niet zo goed, omdat we hierop niet getraind hebben. Er zit ook wat bias in onze dataset, want het is enkel op ons 2 getraind, dus op andere mensen kan het minder goed werken.
 
 ### Jonathan
 
@@ -116,4 +112,4 @@ _[in te vullen]_
 
 ## AI-verantwoording
 
-_[in te vullen]_
+Claude Code hebben we gebruikt voor de development van de app. Wat we zelf hebben gedaan is research over AutoML, het model zelf getraind, design inspiratie opgezocht (en laten uitvoeren door AI). Nagedacht over nieuwe features hebben we grotendeels zelf gedaan, ook de layout hebben we veel de AI bijgestuurd.
