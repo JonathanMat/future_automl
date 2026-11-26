@@ -73,7 +73,6 @@ zie [docs/BACKEND.md](docs/BACKEND.md). Het oorspronkelijke concept staat in [do
 - Flutter (Android/iOS), state management met `provider`
 - MediaPipe Gesture Recognizer (`mediapipe_vision`) met een eigen getraind
   model voor de spreuken; MediaPipe Face Landmarker voor de gezichtseffecten
-  in de killcam
 - Firebase Realtime Database + Anonymous Auth (optioneel Google-login)
 - WebRTC (`flutter_webrtc`) voor het videogesprek, met een TURN-server van
   [Metered](https://www.metered.ca/) zodat het ook over 4G/5G werkt
