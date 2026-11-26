@@ -99,8 +99,8 @@ Per klasse namen we **rond de 1500 foto's**, voor 5 klassen:
 | # | Situatie | Wat er gebeurt | Waarom | Wat we eraan deden |
 |---|---|---|---|---|
 | 1 | _recognition met teachable machine_ | _De detectie was niet accuraat_ | _teachable machines was puur image recognition en niet speciek op gestures_ | _We zijn geswitched naar een MediaPipe Gesture Recognizer-model_ |
-| 2 | _[situatie]_ | _[wat er misgaat]_ | _[oorzaak]_ | _[oplossing / aanpak]_ |
-| 3 | _[situatie]_ | _[wat er misgaat]_ | _[oorzaak]_ | _[oplossing / aanpak]_ |
+| 2 | _beide handen zijn voor de camera_ | _de spell was vuur, terwijl dit shield zou moeten zijn_ | _De reden is dat het beide handen als vuur ziet_ | _Met code checken als beide handen vuur zijn en dan het veranderen naar shield_ |
+| 3 | _gsm lag op de tafel en enkel hand was zichtbaar_ | _Gesture werd niet goed herkent_ | _Dit kwam omdat onze dataset getraind enkel getraind was waar het gezicht op stond_ | _Niets, wegens tijdtekort, de oplossing zou zijn om de dataset te vergroten met deze situatie_ |
 
 ## Reflectie
 ### Maarten
