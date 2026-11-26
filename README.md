@@ -111,8 +111,10 @@ Per klasse namen we **rond de 1500 foto's**, voor 5 klassen:
 Om de trigger moeilijker te laten foppen, zou ik het dataset uitbreiden met meer edge cases, momenteel zijn sommige classes niet zo accuraat, bv shield als je je vingers volledig tegen elkaar houd dan detecteert het niet goed omdat het model getraind is op shield met handen met vingers een beetje open. Ook bv als je gsm op een tafel ligt en je doet je handen erboven, werken sommige gestures niet zo goed, omdat we hierop niet getraind hebben. Er zit ook wat bias in onze dataset, want het is enkel op ons 2 getraind, dus op andere mensen kan het minder goed werken.
 
 ### Jonathan
+Onze trigger is eigenlijk nog vrij makkelijk te foppen. Het shield werkte soms al met maar één hand, terwijl je er twee nodig hebt. Omgekeerd werd het met twee handen soms juist niet herkend. Shield werkte het beste als je de binnenkant van je handen niet naar de camera draaide. Als je gezicht niet in beeld was, werd er ook geen spreuk gecast. Wat ons ook opviel: gebaren die helemaal niet in het spel zitten, activeerden soms toch een spreuk. Het rock-'n-rollteken werd bijvoorbeeld gezien als peace.
 
-_[in te vullen]_
+Over bias: we hebben maar met twee personen opgenomen, wel op verschillende plaatsen. Bij overbelichting of fel licht werkt het waarschijnlijk minder goed. Iedereen maakt een gebaar ook een beetje anders, iemand anders doet "twee vingers" misschien niet zoals wij. Als ik het opnieuw zou doen, zou ik meer verschillende mensen, camera's en lichtomstandigheden gebruiken.
+
 
 ## AI-verantwoording
 
