@@ -29,6 +29,10 @@ in te vullen: de Metered TURN-gegevens (`TURN_URL`, `TURN_USERNAME`,
 TURN werkt het videogesprek meestal alleen op hetzelfde wifi-netwerk; zonder
 worker werkt alles behalve de pushmeldingen.
 
+Google Sign In zal niet werken by default, omdat deze via SHA-1 hash enkel op bepaalde devices bij build werkt, als je eigen firebase gebruikt kan je dit wel doen.
+
+
+
 ## Structuur
 
 ```
